@@ -11,6 +11,12 @@ export const metadata: Metadata = {
   title: "Bremer Locksmith - 24/7 Emergency Service",
   description: "Professional locksmith services available 24/7. Fast, reliable, and secure.",
   generator: "v0.app",
+  viewport: {
+    width: "device-width",
+    initialScale: 1,
+    maximumScale: 1,
+    userScalable: false,
+  },
 }
 
 export default function RootLayout({
@@ -34,7 +40,7 @@ export default function RootLayout({
           async
         ></script>
       </head>
-      <body className={`font-sans antialiased`}>
+      <body className={`font-sans antialiased overflow-hidden h-screen`}>
         {children}
         <Analytics />
       </body>

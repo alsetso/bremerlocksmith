@@ -27,10 +27,9 @@ export function MapComponent({ userLocation }: MapComponentProps) {
           const mapHeight = mapContainer.offsetHeight
           const mapWidth = mapContainer.offsetWidth
           
-          // Target position: 549, 149px (22% from top)
-          const targetX = 549
-          const targetY = 149
-          const targetPercentage = 22
+          // Responsive target position - center horizontally, position vertically based on screen size
+          const targetX = mapWidth / 2 // Center horizontally
+          const targetY = mapHeight * 0.25 // 25% from top for better mobile positioning
           
           // Calculate the offset needed to position pin at target coordinates
           const point = map.latLngToContainerPoint(userLocation)
@@ -41,7 +40,6 @@ export function MapComponent({ userLocation }: MapComponentProps) {
           // This means we subtract the offset instead of adding it
           const newPoint = L.point(point.x - offsetX, point.y - offsetY)
           const newLatLng = map.containerPointToLatLng(newPoint)
-          
           
           // Set the new center
           map.setView(newLatLng, 13)
@@ -95,6 +93,42 @@ export function MapComponent({ userLocation }: MapComponentProps) {
           `)
 
         mapInstanceRef.current = map
+
+        // Add resize handler to recenter pin on viewport changes
+        const handleResize = () => {
+          if (mapInstanceRef.current) {
+            const map = mapInstanceRef.current
+            const mapContainer = map.getContainer()
+            const mapHeight = mapContainer.offsetHeight
+            const mapWidth = mapContainer.offsetWidth
+            
+            // Responsive target position - center horizontally, position vertically based on screen size
+            const targetX = mapWidth / 2 // Center horizontally
+            const targetY = mapHeight * 0.25 // 25% from top for better mobile positioning
+            
+            // Calculate the offset needed to position pin at target coordinates
+            const point = map.latLngToContainerPoint(userLocation)
+            const offsetX = targetX - point.x
+            const offsetY = targetY - point.y
+            
+            // To move pin UPWARD in the frame, we need to move the map center DOWNWARD
+            const newPoint = L.point(point.x - offsetX, point.y - offsetY)
+            const newLatLng = map.containerPointToLatLng(newPoint)
+            
+            // Set the new center
+            map.setView(newLatLng, 13)
+          }
+        }
+
+        // Add resize event listener
+        window.addEventListener('resize', handleResize)
+        window.addEventListener('orientationchange', handleResize)
+
+        // Store cleanup function
+        mapInstanceRef.current._cleanup = () => {
+          window.removeEventListener('resize', handleResize)
+          window.removeEventListener('orientationchange', handleResize)
+        }
       } else {
         // Retry if Leaflet hasn't loaded yet
         setTimeout(initMap, 100)
@@ -105,11 +139,15 @@ export function MapComponent({ userLocation }: MapComponentProps) {
 
     return () => {
       if (mapInstanceRef.current) {
+        // Clean up event listeners
+        if (mapInstanceRef.current._cleanup) {
+          mapInstanceRef.current._cleanup()
+        }
         mapInstanceRef.current.remove()
         mapInstanceRef.current = null
       }
     }
   }, [userLocation])
 
-  return <div ref={mapRef} className="h-full w-full animate-fade-in" style={{ background: "#000" }} />
+  return <div ref={mapRef} className="h-full w-full animate-fade-in overflow-hidden" style={{ background: "#000" }} />
 }
