@@ -37,7 +37,7 @@ export default function HomePage() {
         {userLocation ? (
           <>
             <MapComponent userLocation={userLocation} />
-            <FloatingMenu />
+            <FloatingMenu userLocation={userLocation} />
           </>
         ) : (
           <div className="h-full w-full flex items-center justify-center">
