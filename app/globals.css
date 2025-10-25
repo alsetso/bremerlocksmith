@@ -129,8 +129,17 @@
     height: 100vh;
     height: 100dvh; /* Dynamic viewport height for mobile */
     overflow: hidden;
-    position: fixed;
     width: 100%;
+    margin: 0;
+    padding: 0;
+  }
+  
+  /* Ensure root container takes full viewport */
+  #__next {
+    height: 100vh;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
   }
   
   /* Prevent zoom on input focus on iOS */
@@ -181,6 +190,15 @@
     .floating-menu {
       max-height: calc(70vh - 2rem);
     }
+  }
+  
+  /* Ensure Get Service button is always visible */
+  .get-service-button {
+    position: fixed !important;
+    bottom: 1rem !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    z-index: 1000 !important;
   }
 }
 

@@ -33,7 +33,7 @@ export default function HomePage() {
   return (
     <div className="h-screen w-full flex flex-col bg-black overflow-hidden">
       <Navigation />
-      <main className="flex-1 relative overflow-hidden">
+      <main className="flex-1 relative overflow-hidden min-h-0">
         {userLocation ? (
           <>
             <MapComponent userLocation={userLocation} />

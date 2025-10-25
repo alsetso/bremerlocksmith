@@ -87,7 +87,7 @@ export function FloatingMenu({ userLocation }: FloatingMenuProps) {
   return (
     <>
       {/* Get Service Button */}
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-[1000] animate-slide-up">
+      <div className="get-service-button animate-slide-up">
         <Button
           size="lg"
           onClick={() => {
