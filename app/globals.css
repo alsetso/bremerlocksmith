@@ -147,6 +147,22 @@
   .overflow-y-auto {
     -webkit-overflow-scrolling: touch;
   }
+  
+  /* Safe area support for mobile devices */
+  .floating-menu-container {
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+  
+  /* Ensure floating menu is never cut off */
+  .floating-menu {
+    max-height: calc(50vh - 2rem);
+  }
+  
+  @media (min-width: 640px) {
+    .floating-menu {
+      max-height: calc(55vh - 2rem);
+    }
+  }
 }
 
 /* Custom animations */

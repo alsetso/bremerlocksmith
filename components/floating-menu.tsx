@@ -180,8 +180,8 @@ export function FloatingMenu({ userLocation }: FloatingMenuProps) {
   }
 
   return (
-    <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-[1000] animate-slide-up w-full max-w-sm px-2 sm:px-3 sm:max-w-md">
-      <div className="bg-card/95 backdrop-blur-md border border-border rounded-xl shadow-2xl p-2 sm:p-3 max-h-[55vh] sm:max-h-[60vh] overflow-y-auto">
+    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-[1000] animate-slide-up w-full max-w-sm px-2 sm:px-3 sm:max-w-md floating-menu-container">
+      <div className="bg-card/95 backdrop-blur-md border border-border rounded-xl shadow-2xl p-2 sm:p-3 floating-menu overflow-y-auto">
         {/* Location Header */}
         <div className="mb-3 bg-foreground/10 border border-foreground/20 rounded-lg p-2">
           <div className="flex items-center gap-2 mb-1">
