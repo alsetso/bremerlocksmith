@@ -57,35 +57,26 @@ export default function HomePage() {
   }
 
   useEffect(() => {
-    // Check if we've already asked for permission
-    const hasAskedPermission = localStorage.getItem('location-permission-asked')
+    // Show permission modal on every page reload
+    setShowPermissionModal(true)
     
-    if (!hasAskedPermission) {
-      // Show permission modal on first load
-      setShowPermissionModal(true)
-    } else {
-      // If permission was previously granted, try to get location
-      const permissionStatus = localStorage.getItem('location-permission-status')
-      if (permissionStatus === 'granted') {
-        requestUserLocation()
-      } else {
-        // Use default US location (Minneapolis, MN)
-        setUserLocation([44.9778, -93.2650])
-        setLocationError("Using default location. You can update your location in settings.")
-      }
+    // Check if permission was previously granted and try to get location
+    const permissionStatus = localStorage.getItem('location-permission-status')
+    if (permissionStatus === 'granted') {
+      // Still show modal but also try to get location in background
+      requestUserLocation()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const handleAcceptLocation = () => {
     setShowPermissionModal(false)
-    localStorage.setItem('location-permission-asked', 'true')
+    localStorage.setItem('location-permission-status', 'granted')
     requestUserLocation()
   }
 
   const handleDenyLocation = () => {
     setShowPermissionModal(false)
-    localStorage.setItem('location-permission-asked', 'true')
     localStorage.setItem('location-permission-status', 'denied')
     setLocationError("Location access denied. Using default location.")
     // Use default US location (Minneapolis, MN) instead of Germany
