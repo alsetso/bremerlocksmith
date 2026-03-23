@@ -5,9 +5,13 @@ import { Navigation } from "@/components/navigation"
 import { FloatingMenu } from "@/components/floating-menu"
 import { MapComponent } from "@/components/map-component"
 import { LocationPermissionModal } from "@/components/location-permission-modal"
+import { TransitRoutesPanel } from "@/components/transit-routes-panel"
+import type { TransitStopMapPoint } from "@/lib/nextrip"
 
 export default function HomePage() {
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null)
+  const [vehicleRouteIds, setVehicleRouteIds] = useState<string | null>(null)
+  const [transitStopPath, setTransitStopPath] = useState<TransitStopMapPoint[] | null>(null)
   const [locationError, setLocationError] = useState<string | null>(null)
   const [showPermissionModal, setShowPermissionModal] = useState<boolean>(false)
   const [isRequestingLocation, setIsRequestingLocation] = useState<boolean>(false)
@@ -84,19 +88,35 @@ export default function HomePage() {
   }
 
   return (
-    <div className="h-screen w-full flex flex-col bg-black overflow-hidden">
+    <div className="h-screen w-full flex flex-col bg-background overflow-hidden">
       <Navigation />
       <main className="flex-1 relative overflow-hidden min-h-0">
         {userLocation ? (
           <>
-            <MapComponent userLocation={userLocation} />
+            <div className="w-full h-full min-h-0 box-border flex flex-col pt-3 px-3 sm:pt-4 sm:px-4 md:pt-5 md:px-5 lg:px-6 pb-0">
+              <div className="relative flex-1 min-h-0 w-full rounded-t-2xl overflow-hidden">
+                <MapComponent
+                  userLocation={userLocation}
+                  vehicleRouteIds={vehicleRouteIds}
+                  transitStopPath={transitStopPath}
+                />
+                <TransitRoutesPanel
+                  vehicleRouteIds={vehicleRouteIds}
+                  transitStopPath={transitStopPath}
+                  onVehicleRouteFocus={setVehicleRouteIds}
+                  onTransitStopsPlotted={setTransitStopPath}
+                />
+              </div>
+            </div>
             <FloatingMenu userLocation={userLocation} />
           </>
         ) : (
-          <div className="h-full w-full flex items-center justify-center">
-            <div className="text-center animate-pulse-subtle">
-              <div className="text-lg text-foreground">
-                {isRequestingLocation ? "Getting your location..." : locationError || "Waiting for location..."}
+          <div className="w-full h-full min-h-0 box-border flex flex-col pt-3 px-3 sm:pt-4 sm:px-4 md:pt-5 md:px-5 lg:px-6 pb-0">
+            <div className="flex-1 min-h-0 w-full rounded-t-2xl overflow-hidden flex items-center justify-center bg-white/70 border border-zinc-200/80">
+              <div className="text-center animate-pulse-subtle px-4">
+                <div className="text-lg text-zinc-900">
+                  {isRequestingLocation ? "Getting your location..." : locationError || "Waiting for location..."}
+                </div>
               </div>
             </div>
           </div>
