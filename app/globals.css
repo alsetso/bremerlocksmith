@@ -202,6 +202,11 @@
   }
 }
 
+/* Leaflet: raster tiles use device pixels cleanly (pairs with detectRetina / @2x tile URLs) */
+.leaflet-container img.leaflet-tile {
+  image-rendering: auto;
+}
+
 /* Custom animations */
 @keyframes fadeIn {
   from {

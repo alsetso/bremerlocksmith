@@ -17,12 +17,6 @@ function escapePopupText(s: string) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
 }
 
-/** Minnesota state bounds (SW corner, NE corner) */
-const MINNESOTA_BOUNDS: [[number, number], [number, number]] = [
-  [43.48, -97.25],
-  [49.38, -89.45],
-]
-
 const METRO_POLL_MS = 10_000
 
 interface MetroVehicle {
@@ -46,6 +40,9 @@ function isValidVehiclePosition(lat: number, lng: number) {
   )
 }
 
+const USER_VIEW_ZOOM = 13
+const FLY_TO_USER_DURATION_SEC = 1.05
+
 export function MapComponent({
   userLocation,
   vehicleRouteIds,
@@ -54,6 +51,8 @@ export function MapComponent({
 }: MapComponentProps) {
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<any>(null)
+  const userLocationRef = useRef(userLocation)
+  userLocationRef.current = userLocation
   const vehicleRouteIdsRef = useRef<string | null | undefined>(vehicleRouteIds)
   vehicleRouteIdsRef.current = vehicleRouteIds
   const transitStopPathRef = useRef<TransitStopMapPoint[] | null | undefined>(undefined)
@@ -81,23 +80,47 @@ export function MapComponent({
       if (typeof window !== "undefined" && (window as any).L) {
         const L = (window as any).L
 
-        const mnBounds = L.latLngBounds(MINNESOTA_BOUNDS[0], MINNESOTA_BOUNDS[1])
+        const map = L.map(mapRef.current, {
+          maxZoom: 20,
+          zoomSnap: 0.25,
+        })
 
-        const map = L.map(mapRef.current)
+        const flyToUserView = (animated: boolean) => {
+          const loc = userLocationRef.current
+          if (!loc?.length) return
+          const [lat, lng] = loc
+          if (typeof lat !== "number" || typeof lng !== "number" || Number.isNaN(lat) || Number.isNaN(lng)) return
+          if (animated) {
+            map.flyTo([lat, lng], USER_VIEW_ZOOM, {
+              duration: FLY_TO_USER_DURATION_SEC,
+              easeLinearity: 0.22,
+            })
+          } else {
+            map.setView([lat, lng], USER_VIEW_ZOOM, { animate: false })
+          }
+        }
 
         setTimeout(() => {
-          map.fitBounds(mnBounds, { padding: [28, 28], animate: false })
-        }, 0)
+          flyToUserView(true)
+        }, 50)
+
+        const highDpi =
+          typeof window !== "undefined" && typeof window.devicePixelRatio === "number"
+            ? window.devicePixelRatio >= 2
+            : false
 
         if (mapboxToken) {
+          // Path must include /512/ to match tileSize 512 + zoomOffset -1 (otherwise 256px tiles scale up and look soft)
+          const mapboxRetina = highDpi ? "@2x" : ""
           L.tileLayer(
-            `https://api.mapbox.com/styles/v1/mapbox/streets-v12/tiles/{z}/{x}/{y}?access_token=${mapboxToken}`,
+            `https://api.mapbox.com/styles/v1/mapbox/streets-v12/tiles/512/{z}/{x}/{y}${mapboxRetina}?access_token=${mapboxToken}`,
             {
               attribution:
                 '&copy; <a href="https://www.mapbox.com/about/maps/">Mapbox</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
               tileSize: 512,
               zoomOffset: -1,
-              maxZoom: 19,
+              maxZoom: 22,
+              maxNativeZoom: 22,
             },
           ).addTo(map)
         } else {
@@ -106,6 +129,8 @@ export function MapComponent({
               '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
             subdomains: "abcd",
             maxZoom: 20,
+            maxNativeZoom: 20,
+            detectRetina: true,
           }).addTo(map)
         }
 
@@ -152,7 +177,7 @@ export function MapComponent({
 
         const refitMainBounds = () => {
           if (!transitMapVisibleRef.current) {
-            map.fitBounds(mnBounds, { padding: [28, 28], animate: false })
+            flyToUserView(false)
             return
           }
           const stops = transitStopPathRef.current
@@ -170,7 +195,7 @@ export function MapComponent({
               return
             }
           }
-          map.fitBounds(mnBounds, { padding: [28, 28], animate: false })
+          flyToUserView(false)
         }
 
         const refreshTransitOverlay = () => {

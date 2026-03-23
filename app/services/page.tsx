@@ -1,12 +1,23 @@
 import type { Metadata } from "next"
 import Link from "next/link"
-import { Bus, CarFront, KeyRound, Sparkles, Truck } from "lucide-react"
+import {
+  Bus,
+  CarFront,
+  Copy,
+  KeyRound,
+  Scissors,
+  Shield,
+  Smartphone,
+  Sparkles,
+  Truck,
+  Wrench,
+} from "lucide-react"
 import { Navigation } from "@/components/navigation"
 
 export const metadata: Metadata = {
   title: "Services — MNISR Immediate Service Response",
   description:
-    "Locksmith, towing, ditch recovery, transportation, and more. MNISR dispatches the best driver and agency for your situation.",
+    "Locksmith, keys, towing, ditch recovery, transportation, and more—custom keys, cuts, fobs, installs. MNISR dispatches the right responder for your situation.",
 }
 
 const services = [
@@ -39,6 +50,45 @@ const services = [
     description:
       "Urgent or specialty requests outside standard categories—we still route the right responder.",
     icon: Sparkles,
+  },
+] as const
+
+const keyOfferings = [
+  {
+    title: "Custom keys",
+    description:
+      "Duplication and origination for residential, commercial, and specialty profiles—including high-security and restricted systems when available.",
+    icon: KeyRound,
+  },
+  {
+    title: "Precision cuts",
+    description:
+      "Accurate key cutting by code or sample, worn-key recovery, and batch cuts for property managers and fleet needs.",
+    icon: Scissors,
+  },
+  {
+    title: "Fobs & remotes",
+    description:
+      "Programming and replacement for key fobs, proximity cards, and remote head keys—paired to your vehicle or access system.",
+    icon: Smartphone,
+  },
+  {
+    title: "Installs",
+    description:
+      "New locksets, cylinders, smart locks, and exit hardware installed and keyed to your master plan or single-key convenience.",
+    icon: Wrench,
+  },
+  {
+    title: "Rekey & master key",
+    description:
+      "Rekeying after move-in or turnover, master key systems, and restricted keyways for better control of who has access.",
+    icon: Copy,
+  },
+  {
+    title: "Security consult",
+    description:
+      "Guidance on bump-resistant cylinders, credential upgrades, and layered physical security for homes and small businesses.",
+    icon: Shield,
   },
 ] as const
 
@@ -80,6 +130,44 @@ export default function ServicesPage() {
               </li>
             ))}
           </ul>
+
+          <section className="mt-16 border-t border-[#c9b8a3]/80 pt-14" aria-labelledby="keys-heading">
+            <p className="text-center text-xs font-semibold uppercase tracking-[0.22em] text-[#6d4c41]">
+              Keys
+            </p>
+            <h2
+              id="keys-heading"
+              className="mt-3 text-center font-serif text-2xl font-semibold tracking-tight text-[#3e2723] sm:text-[1.85rem] sm:leading-snug"
+            >
+              Custom keys, cuts, fobs & installs
+            </h2>
+            <p className="mx-auto mt-5 max-w-2xl text-center text-base leading-relaxed text-[#5d4037]/95">
+              From a single spare key to full property rekeys and electronic access, we coordinate experienced
+              locksmiths who work with your hardware and timeline.
+            </p>
+
+            <div className="mt-10 rounded-sm border border-[#c9b8a3] bg-[#faf7f2] p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)] sm:p-8">
+              <p className="text-center font-serif text-base font-medium leading-relaxed text-[#3e2723] sm:text-lg">
+                Request service from the home map with your location—we route a responder who can assess on-site
+                needs and bring the right blanks, tools, and programmers when possible.
+              </p>
+            </div>
+
+            <ul className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 lg:gap-5">
+              {keyOfferings.map(({ title, description, icon: Icon }) => (
+                <li
+                  key={title}
+                  className="flex flex-col rounded-sm border border-[#c9b8a3]/90 bg-[#fffef9] p-5 shadow-[0_1px_3px_rgba(62,39,35,0.08)] transition-[box-shadow,transform] duration-200 hover:-translate-y-px hover:shadow-[0_3px_10px_rgba(62,39,35,0.1)]"
+                >
+                  <div className="mb-3.5 flex h-10 w-10 items-center justify-center rounded-sm border border-[#d7cbb8] bg-[#efe8dd]">
+                    <Icon className="h-[1.35rem] w-[1.35rem] text-[#5D4037]" strokeWidth={1.65} aria-hidden />
+                  </div>
+                  <h3 className="font-serif text-lg font-semibold text-[#3e2723]">{title}</h3>
+                  <p className="mt-2 flex-1 text-sm leading-relaxed text-[#5d4037]/92">{description}</p>
+                </li>
+              ))}
+            </ul>
+          </section>
 
           <div className="mt-14 flex flex-col items-center gap-4 border-t border-[#c9b8a3]/80 pt-10">
             <p className="text-center text-sm text-[#5d4037]/90">

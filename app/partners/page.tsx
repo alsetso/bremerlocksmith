@@ -1,74 +1,75 @@
 import type { Metadata } from "next"
 import Link from "next/link"
 import {
-  Building2,
-  CarFront,
-  ClipboardCheck,
-  Clock,
+  LayoutDashboard,
+  MapPinned,
+  Layers,
+  Radio,
   ShieldCheck,
   ArrowRight,
 } from "lucide-react"
 import { Navigation } from "@/components/navigation"
 
 export const metadata: Metadata = {
-  title: "Drivers — MNISR Immediate Service Response",
+  title: "Partners — MNISR Immediate Service Response",
   description:
-    "Join MNISR as a field driver: choose your agency, enroll your vehicle, meet service requirements, and set availability—application opening soon.",
+    "MNISR partners with service-business owners across locksmith, towing, recovery, transport, and more—digital workspace and live vehicle location in one place.",
 }
 
-const driverSections = [
+const pillars = [
   {
-    title: "Select your agency",
+    title: "Digital workspace",
     description:
-      "Drivers work under a partner agency on the network. When you apply, you will identify or be matched with the shop, fleet, or dispatch you roll for—so jobs, branding, and accountability stay clear.",
-    icon: Building2,
+      "One place for jobs, dispatch context, and customer touchpoints—so your team spends less time on paperwork and more time in the field.",
+    icon: LayoutDashboard,
   },
   {
-    title: "Enroll your vehicle",
+    title: "Vehicle location integration",
     description:
-      "Register the truck or van you operate—class, equipment, and identifiers—so dispatch and customers see the right asset on the map. Live location hooks in once you are approved and opted in.",
-    icon: CarFront,
+      "Tie responder vehicles to the map for realistic ETAs, routing awareness, and calmer handoffs between your office and drivers.",
+    icon: MapPinned,
   },
   {
-    title: "Requirements for service",
+    title: "Built for every service type",
     description:
-      "Expect to show valid licensing and insurance for your trade and region, roadworthy equipment, and any trade-specific certs your agency requires. MNISR and partner agencies verify before you take live dispatches.",
-    icon: ClipboardCheck,
+      "Whether you run locksmith vans, wreckers, ditch rigs, or mixed fleets, the same workspace adapts to how your business operates.",
+    icon: Layers,
   },
   {
-    title: "Availability",
+    title: "Operational visibility",
     description:
-      "Set the hours and coverage you can run—on-call windows, metro vs extended radius, and blackout times. Updates keep your agency and the network aligned with what you can actually take.",
-    icon: Clock,
+      "See who is moving, where demand is clustering, and how requests flow—without juggling five different apps.",
+    icon: Radio,
   },
 ] as const
 
-const requirementBullets = [
-  "Current driver license and insurable driving record (as required by your agency)",
-  "Commercial or trade coverage and liability in line with partner policy",
-  "Vehicle inspection and equipment checklist for your service type",
-  "Background or credential checks where applicable for locksmith, tow, or transport work",
+const serviceTypes = [
+  "Locksmith & access",
+  "Towing & recovery",
+  "Ditch / winch-out",
+  "Transportation & logistics",
+  "Other urgent or specialty response",
 ] as const
 
-export default function DriversPage() {
+export default function PartnersPage() {
   return (
     <div className="flex min-h-screen flex-col bg-[#ebe4d8]">
       <Navigation />
       <main className="min-h-0 flex-1">
         <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
           <div className="grid min-h-0 gap-10 lg:grid-cols-2 lg:gap-12 lg:items-start">
-            {/* Left: how it works — scrollable when taller than viewport */}
+            {/* Left: narrative — scrollable when taller than viewport */}
             <div className="min-h-0 touch-pan-y lg:max-h-[calc(100dvh-5.5rem)] lg:overflow-y-auto lg:overscroll-y-contain lg:[-ms-overflow-style:none] lg:[scrollbar-width:none] lg:[&::-webkit-scrollbar]:hidden">
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#6d4c41]">
-                For drivers
+                For business owners
               </p>
               <h1 className="mt-3 font-serif text-3xl font-semibold tracking-tight text-[#3e2723] sm:text-[2.15rem] sm:leading-snug">
-                Agency, vehicle, requirements & availability
+                Equip your operation with our digital workspace
               </h1>
               <p className="mt-5 text-base leading-relaxed text-[#5d4037]/95">
-                MNISR connects customers with responders through partner agencies. Here is how we set you up
-                in the field—with a clear agency relationship, a registered vehicle, documented
-                requirements, and availability that matches what you can deliver.
+                MNISR works with owners across service categories—not just one trade. We are building tools
+                that connect your brand, your dispatch picture, and live vehicle location so customers get
+                clear answers and your crews stay coordinated.
               </p>
 
               <div className="mt-8 rounded-sm border border-[#c9b8a3] bg-[#faf7f2] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)] sm:p-6">
@@ -79,15 +80,15 @@ export default function DriversPage() {
                     aria-hidden
                   />
                   <p className="text-sm leading-relaxed text-[#3e2723]">
-                    <span className="font-semibold text-[#4a342c]">You are never anonymous on the network.</span>{" "}
-                    Your agency stands behind the work; your profile ties vehicle, credentials, and schedule
-                    together for safer handoffs.
+                    <span className="font-semibold text-[#4a342c]">Partner-ready, not one-size-fits-all.</span>{" "}
+                    Tell us how your shop or fleet runs—we align the workspace and integrations to your
+                    workflows as we onboard teams.
                   </p>
                 </div>
               </div>
 
               <ul className="mt-10 space-y-8">
-                {driverSections.map(({ title, description, icon: Icon }) => (
+                {pillars.map(({ title, description, icon: Icon }) => (
                   <li key={title} className="flex gap-4">
                     <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-sm border border-[#d7cbb8] bg-[#efe8dd]">
                       <Icon className="h-[1.35rem] w-[1.35rem] text-[#5D4037]" strokeWidth={1.65} aria-hidden />
@@ -102,10 +103,10 @@ export default function DriversPage() {
 
               <div className="mt-10 rounded-sm border border-[#c9b8a3]/90 bg-[#fffef9] p-5">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#6d4c41]">
-                  Typical requirement themes
+                  Who we are speaking with
                 </p>
                 <ul className="mt-3 space-y-2 text-sm text-[#5d4037]/95">
-                  {requirementBullets.map((line) => (
+                  {serviceTypes.map((line) => (
                     <li key={line} className="flex items-start gap-2">
                       <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-[#8d7b68]" aria-hidden />
                       <span>{line}</span>
@@ -115,21 +116,21 @@ export default function DriversPage() {
               </div>
 
               <p className="mt-8 text-sm leading-relaxed text-[#5d4037]/88">
-                Already with a partner shop? Have your agency name ready when the application opens. New to
-                the network? We will help route you to the right partner during onboarding.
+                Questions before you apply? Use the same flow your customers use from the home map—we will
+                route enterprise and partner conversations from there as we expand contact options.
               </p>
             </div>
 
-            {/* Right: driver application — coming soon */}
+            {/* Right: application — coming soon */}
             <div className="lg:sticky lg:top-6">
               <div className="relative overflow-hidden rounded-sm border border-[#c9b8a3] bg-[#fffef9] shadow-[0_2px_12px_rgba(62,39,35,0.08)]">
                 <div className="border-b border-[#d7cbb8] bg-[#efe8dd]/80 px-5 py-4 sm:px-6">
                   <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#6d4c41]">
-                    Driver application
+                    Partner application
                   </p>
-                  <h2 className="mt-1 font-serif text-xl font-semibold text-[#3e2723]">Join as a responder</h2>
+                  <h2 className="mt-1 font-serif text-xl font-semibold text-[#3e2723]">Join the network</h2>
                   <p className="mt-2 text-sm text-[#5d4037]/90">
-                    Link your agency, vehicle, and availability for MNISR dispatches.
+                    Request access to the business workspace and vehicle integrations.
                   </p>
                 </div>
 
@@ -140,39 +141,39 @@ export default function DriversPage() {
                   <div className="space-y-4">
                     <div>
                       <label className="block text-xs font-medium uppercase tracking-wide text-[#5d4037]/80">
-                        Partner agency
+                        Business name
                       </label>
                       <div className="mt-1.5 h-10 rounded-sm border border-[#c9b8a3] bg-[#faf7f2]" />
                     </div>
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div>
                         <label className="block text-xs font-medium uppercase tracking-wide text-[#5d4037]/80">
-                          Full name
+                          Your name
                         </label>
                         <div className="mt-1.5 h-10 rounded-sm border border-[#c9b8a3] bg-[#faf7f2]" />
                       </div>
                       <div>
                         <label className="block text-xs font-medium uppercase tracking-wide text-[#5d4037]/80">
-                          Phone
+                          Role
                         </label>
                         <div className="mt-1.5 h-10 rounded-sm border border-[#c9b8a3] bg-[#faf7f2]" />
                       </div>
                     </div>
                     <div>
                       <label className="block text-xs font-medium uppercase tracking-wide text-[#5d4037]/80">
-                        Email
+                        Work email
                       </label>
                       <div className="mt-1.5 h-10 rounded-sm border border-[#c9b8a3] bg-[#faf7f2]" />
                     </div>
                     <div>
                       <label className="block text-xs font-medium uppercase tracking-wide text-[#5d4037]/80">
-                        Vehicle (year, make, class)
+                        Phone
                       </label>
                       <div className="mt-1.5 h-10 rounded-sm border border-[#c9b8a3] bg-[#faf7f2]" />
                     </div>
                     <div>
                       <label className="block text-xs font-medium uppercase tracking-wide text-[#5d4037]/80">
-                        Service types & availability
+                        Tell us about your fleet or coverage area
                       </label>
                       <div className="mt-1.5 h-24 rounded-sm border border-[#c9b8a3] bg-[#faf7f2]" />
                     </div>
@@ -184,11 +185,11 @@ export default function DriversPage() {
                     Coming soon
                   </p>
                   <p className="mt-3 max-w-[16rem] font-serif text-lg font-semibold text-[#3e2723]">
-                    Driver applications open shortly
+                    Partner applications open shortly
                   </p>
                   <p className="mt-2 max-w-sm text-sm leading-relaxed text-[#5d4037]/95">
-                    We are finishing verification flows with agencies. Check back soon—or ask your partner
-                    shop for updates on MNISR driver onboarding.
+                    We are finalizing onboarding and verification. Check back soon—or reach out through your
+                    usual MNISR channels when available.
                   </p>
                 </div>
               </div>

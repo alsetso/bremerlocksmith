@@ -9,7 +9,7 @@ import { Menu, X, MapPin } from "lucide-react"
 const navItems = [
   { href: "/", label: "Home" },
   { href: "/services", label: "Services" },
-  { href: "/agencies", label: "Agencies" },
+  { href: "/partners", label: "Partners" },
   { href: "/drivers", label: "Drivers" },
 ] as const
 

@@ -90,12 +90,10 @@ export function FloatingMenu({ userLocation }: FloatingMenuProps) {
       <div className="get-service-button animate-slide-up">
         <Button
           size="lg"
-          onClick={() => {
-            console.log('Get Service clicked, userLocation:', userLocation)
-            console.log('Setting modal open to true')
-            setIsModalOpen(true)
-          }}
-          className="bg-zinc-900 text-white hover:bg-zinc-800 transition-all duration-200 hover:scale-105 shadow-lg border-2 border-zinc-800 px-8 py-4 text-lg font-semibold rounded-xl"
+          onClick={() => setIsModalOpen(true)}
+          className={`bg-red-600 text-white hover:bg-red-700 transition-all duration-200 hover:scale-105 shadow-lg border-2 border-red-800 px-8 py-4 text-lg font-semibold rounded-xl focus-visible:ring-red-400 ${
+            isModalOpen ? "ring-2 ring-red-300 ring-offset-2 ring-offset-background" : ""
+          }`}
         >
           Get Service
         </Button>
