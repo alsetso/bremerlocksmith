@@ -12,7 +12,9 @@ export default function HomePage() {
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null)
   const [vehicleRouteIds, setVehicleRouteIds] = useState<string | null>(null)
   const [transitStopPath, setTransitStopPath] = useState<TransitStopMapPoint[] | null>(null)
-  const [transitPanelExpanded, setTransitPanelExpanded] = useState(true)
+  const [transitPanelExpanded, setTransitPanelExpanded] = useState(false)
+  /** Buses + route overlay; independent of panel so we can show “Show transit” while transit stays on */
+  const [transitMapVisible, setTransitMapVisible] = useState(true)
   const [locationError, setLocationError] = useState<string | null>(null)
   const [showPermissionModal, setShowPermissionModal] = useState<boolean>(false)
   const [isRequestingLocation, setIsRequestingLocation] = useState<boolean>(false)
@@ -100,11 +102,15 @@ export default function HomePage() {
                   userLocation={userLocation}
                   vehicleRouteIds={vehicleRouteIds}
                   transitStopPath={transitStopPath}
-                  transitMapVisible={transitPanelExpanded}
+                  transitMapVisible={transitMapVisible}
                 />
                 <TransitRoutesPanel
                   expanded={transitPanelExpanded}
-                  onExpandedChange={setTransitPanelExpanded}
+                  onExpandedChange={(next) => {
+                    setTransitPanelExpanded(next)
+                    if (next) setTransitMapVisible(true)
+                    else setTransitMapVisible(false)
+                  }}
                   vehicleRouteIds={vehicleRouteIds}
                   transitStopPath={transitStopPath}
                   onVehicleRouteFocus={setVehicleRouteIds}

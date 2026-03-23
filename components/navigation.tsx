@@ -16,7 +16,7 @@ const navItems = [
 function navLinkClass(active: boolean) {
   return [
     "text-sm font-medium transition-colors",
-    active ? "text-teal-700" : "text-zinc-700 hover:text-zinc-900",
+    active ? "text-[#4a342c]" : "text-[#5d4037]/90 hover:text-[#3e2723]",
   ].join(" ")
 }
 
@@ -25,23 +25,26 @@ export function Navigation() {
   const pathname = usePathname()
 
   return (
-    <nav className="bg-white border-b border-zinc-200/90 z-50 animate-fade-in">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16 gap-4">
+    <nav className="z-50 border-b border-[#c9b8a3] bg-[#faf7f2] shadow-[0_1px_0_rgba(255,255,255,0.7)_inset] animate-fade-in">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="flex h-[4.25rem] items-center justify-between gap-4">
           <div className="flex min-w-0 flex-1 items-center gap-6 md:gap-10">
-            <Link href="/" className="flex-shrink-0 min-w-0 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-teal-600/40">
-              <h1 className="flex flex-col items-start gap-[5px] p-0 m-0">
-                <span className="inline-flex items-baseline gap-1 text-base sm:text-lg md:text-xl font-bold tracking-tight leading-none">
+            <Link
+              href="/"
+              className="min-w-0 shrink-0 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-[#8d7b68]/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[#faf7f2]"
+            >
+              <h1 className="m-0 flex flex-col items-start gap-1 p-0">
+                <span className="inline-flex items-baseline gap-1.5 font-serif text-lg font-semibold tracking-tight leading-none sm:text-xl md:text-[1.35rem]">
                   <span className="text-[#5D4037]">MN</span>
                   <span className="text-[#8B7355]">ISR</span>
                 </span>
-                <span className="text-[5px] font-medium text-zinc-800 leading-none tracking-wide">
+                <span className="max-w-[12rem] text-[8px] font-medium uppercase tracking-[0.14em] text-[#6d4c41] leading-tight sm:max-w-none sm:text-[9px] sm:tracking-[0.16em]">
                   Immediate Service Response
                 </span>
               </h1>
             </Link>
 
-            <div className="hidden md:flex items-center gap-6">
+            <div className="hidden items-center gap-6 md:flex">
               {navItems.map(({ href, label }) => {
                 const active =
                   href === "/"
@@ -56,17 +59,22 @@ export function Navigation() {
             </div>
           </div>
 
-          <div className="hidden md:flex items-center gap-6 shrink-0">
-            <div className="flex items-center gap-2 border border-zinc-200 rounded-lg px-3 py-1.5 bg-zinc-50/80">
-              <MapPin className="w-4 h-4 text-zinc-700" />
-              <span className="text-sm text-zinc-900 font-medium">Minneapolis, MN</span>
-              <span className="text-zinc-400">·</span>
-              <span className="text-sm text-zinc-800">(612) 555-0100</span>
+          <div className="hidden shrink-0 items-center gap-6 md:flex">
+            <div className="flex items-center gap-2 rounded-sm border border-[#c9b8a3] bg-[#fffef9] px-3 py-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
+              <MapPin className="h-4 w-4 shrink-0 text-[#5D4037]" aria-hidden />
+              <span className="text-sm font-medium text-[#3e2723]">Minneapolis, MN</span>
+              <span className="text-[#a89882]">·</span>
+              <span className="text-sm text-[#4a342c]">(612) 555-0100</span>
             </div>
           </div>
 
-          <div className="md:hidden shrink-0">
-            <Button variant="ghost" size="icon" onClick={() => setIsMenuOpen(!isMenuOpen)} className="text-zinc-900 hover:bg-zinc-100">
+          <div className="shrink-0 md:hidden">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+              className="text-[#3e2723] hover:bg-[#efe8dd]"
+            >
               {isMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
             </Button>
           </div>
@@ -74,8 +82,8 @@ export function Navigation() {
       </div>
 
       {isMenuOpen && (
-        <div className="md:hidden border-t border-zinc-200 animate-slide-up bg-white">
-          <div className="px-4 pt-2 pb-3 space-y-1">
+        <div className="animate-slide-up border-t border-[#c9b8a3] bg-[#faf7f2] md:hidden">
+          <div className="space-y-1 px-4 pb-3 pt-2">
             {navItems.map(({ href, label }) => {
               const active =
                 href === "/"
@@ -86,19 +94,21 @@ export function Navigation() {
                   key={href}
                   href={href}
                   onClick={() => setIsMenuOpen(false)}
-                  className={`block rounded-lg px-3 py-2.5 text-sm font-medium ${
-                    active ? "bg-teal-50 text-teal-800" : "text-zinc-800 hover:bg-zinc-50"
+                  className={`block rounded-sm px-3 py-2.5 text-sm font-medium ${
+                    active
+                      ? "bg-[#efe8dd] text-[#3e2723]"
+                      : "text-[#4a342c] hover:bg-[#f5efe6]"
                   }`}
                 >
                   {label}
                 </Link>
               )
             })}
-            <div className="mt-3 flex items-center gap-2 px-3 py-2 border border-zinc-200 rounded-lg bg-zinc-50/80">
-              <MapPin className="w-4 h-4 text-zinc-700 shrink-0" />
+            <div className="mt-3 flex items-center gap-2 rounded-sm border border-[#c9b8a3] bg-[#fffef9] px-3 py-2">
+              <MapPin className="h-4 w-4 shrink-0 text-[#5D4037]" aria-hidden />
               <div className="text-sm">
-                <div className="text-zinc-900 font-medium">Minneapolis, MN</div>
-                <div className="text-zinc-700">(612) 555-0100</div>
+                <div className="font-medium text-[#3e2723]">Minneapolis, MN</div>
+                <div className="text-[#5d4037]">(612) 555-0100</div>
               </div>
             </div>
           </div>
