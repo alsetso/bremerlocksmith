@@ -22,21 +22,21 @@ interface TechnicianRequest {
   notes: string
 }
 
-export function ServiceRequestModal({ 
-  isOpen, 
-  onClose, 
-  userLocation, 
-  userAddress, 
+export function ServiceRequestModal({
+  isOpen,
+  onClose,
+  userLocation,
+  userAddress,
   coordinates,
-  initialServiceType = "",
-  initialLockoutType = ""
+  initialServiceType,
+  initialLockoutType,
 }: ServiceRequestModalProps) {
   const [step, setStep] = useState<"service" | "lockout-type" | "details" | "confirm" | "submitted">(
     initialServiceType ? (initialServiceType === "lockout" && !initialLockoutType ? "lockout-type" : "details") : "service"
   )
   const [request, setRequest] = useState<TechnicianRequest>({
-    serviceType: initialServiceType,
-    lockoutType: initialLockoutType,
+    serviceType: initialServiceType ?? "",
+    lockoutType: initialLockoutType ?? "",
     customerName: "",
     phoneNumber: "",
     notes: ""

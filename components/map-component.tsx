@@ -9,6 +9,8 @@ interface MapComponentProps {
   vehicleRouteIds?: string | null
   /** Ordered stop coordinates for polyline + markers; null clears the overlay */
   transitStopPath?: TransitStopMapPoint[] | null
+  /** When false, buses and route/stop overlays are cleared and not polled */
+  transitMapVisible?: boolean
 }
 
 function escapePopupText(s: string) {
@@ -44,17 +46,31 @@ function isValidVehiclePosition(lat: number, lng: number) {
   )
 }
 
-export function MapComponent({ userLocation, vehicleRouteIds, transitStopPath }: MapComponentProps) {
+export function MapComponent({
+  userLocation,
+  vehicleRouteIds,
+  transitStopPath,
+  transitMapVisible = true,
+}: MapComponentProps) {
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<any>(null)
   const vehicleRouteIdsRef = useRef<string | null | undefined>(vehicleRouteIds)
   vehicleRouteIdsRef.current = vehicleRouteIds
   const transitStopPathRef = useRef<TransitStopMapPoint[] | null | undefined>(undefined)
   transitStopPathRef.current = transitStopPath ?? null
+  const transitMapVisibleRef = useRef(transitMapVisible)
+  transitMapVisibleRef.current = transitMapVisible
 
   useEffect(() => {
     mapInstanceRef.current?._refreshTransitOverlay?.()
   }, [transitStopPath])
+
+  useEffect(() => {
+    transitMapVisibleRef.current = transitMapVisible
+    mapInstanceRef.current?._refreshTransitOverlay?.()
+    mapInstanceRef.current?._updateMetroVehicles?.()
+    mapInstanceRef.current?._refitMainBounds?.()
+  }, [transitMapVisible])
 
   useEffect(() => {
     if (!mapRef.current || mapInstanceRef.current) return
@@ -135,6 +151,10 @@ export function MapComponent({ userLocation, vehicleRouteIds, transitStopPath }:
         const transitOverlay = L.layerGroup().addTo(map)
 
         const refitMainBounds = () => {
+          if (!transitMapVisibleRef.current) {
+            map.fitBounds(mnBounds, { padding: [28, 28], animate: false })
+            return
+          }
           const stops = transitStopPathRef.current
           const valid = stops?.filter(
             (p) =>
@@ -155,6 +175,10 @@ export function MapComponent({ userLocation, vehicleRouteIds, transitStopPath }:
 
         const refreshTransitOverlay = () => {
           transitOverlay.clearLayers()
+          if (!transitMapVisibleRef.current) {
+            refitMainBounds()
+            return
+          }
           const path = transitStopPathRef.current
           if (!path?.length) {
             refitMainBounds()
@@ -224,6 +248,10 @@ export function MapComponent({ userLocation, vehicleRouteIds, transitStopPath }:
         }
 
         const updateMetroVehicles = async () => {
+          if (!transitMapVisibleRef.current) {
+            metroLayer.clearLayers()
+            return
+          }
           try {
             const res = await fetch(vehiclesUrl())
             if (!res.ok) return
@@ -265,6 +293,7 @@ export function MapComponent({ userLocation, vehicleRouteIds, transitStopPath }:
         mapInstanceRef.current = map
         mapInstanceRef.current._refreshTransitOverlay = refreshTransitOverlay
         mapInstanceRef.current._refitMainBounds = refitMainBounds
+        mapInstanceRef.current._updateMetroVehicles = updateMetroVehicles
         refreshTransitOverlay()
 
         const handleResize = () => {
@@ -307,18 +336,20 @@ export function MapComponent({ userLocation, vehicleRouteIds, transitStopPath }:
   return (
     <div className="relative h-full w-full">
       <div ref={mapRef} className="h-full w-full animate-fade-in overflow-hidden bg-background" />
-      <div className="pointer-events-none absolute bottom-3 left-3 z-[500] max-w-[min(100%,18rem)] rounded-lg border border-zinc-200/90 bg-white/95 px-3 py-2 text-[11px] leading-snug text-zinc-700 shadow-sm sm:bottom-4 sm:left-4 sm:text-xs">
-        <span className="font-semibold text-zinc-900">Metro Transit</span>
-        <span className="text-zinc-500"> — live bus positions (selected routes), updated every ~10s. Data: </span>
-        <a
-          className="pointer-events-auto font-medium text-teal-700 underline decoration-teal-700/40 underline-offset-2 hover:text-teal-800"
-          href="https://svc.metrotransit.org/"
-          target="_blank"
-          rel="noreferrer noopener"
-        >
-          svc.metrotransit.org
-        </a>
-      </div>
+      {transitMapVisible && (
+        <div className="pointer-events-none absolute bottom-3 left-3 z-[500] max-w-[min(100%,18rem)] rounded-lg border border-zinc-200/90 bg-white/95 px-3 py-2 text-[11px] leading-snug text-zinc-700 shadow-sm sm:bottom-4 sm:left-4 sm:text-xs">
+          <span className="font-semibold text-zinc-900">Metro Transit</span>
+          <span className="text-zinc-500"> — live bus positions (selected routes), updated every ~10s. Data: </span>
+          <a
+            className="pointer-events-auto font-medium text-teal-700 underline decoration-teal-700/40 underline-offset-2 hover:text-teal-800"
+            href="https://svc.metrotransit.org/"
+            target="_blank"
+            rel="noreferrer noopener"
+          >
+            svc.metrotransit.org
+          </a>
+        </div>
+      )}
     </div>
   )
 }

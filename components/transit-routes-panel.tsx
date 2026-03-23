@@ -10,6 +10,8 @@ import type {
 } from "@/lib/nextrip"
 
 interface TransitRoutesPanelProps {
+  expanded: boolean
+  onExpandedChange: (expanded: boolean) => void
   vehicleRouteIds: string | null
   transitStopPath: TransitStopMapPoint[] | null
   onVehicleRouteFocus: (routeId: string | null) => void
@@ -58,6 +60,8 @@ function toMapPoints(rows: NexTripStopWithCoord[]): TransitStopMapPoint[] {
 }
 
 export function TransitRoutesPanel({
+  expanded,
+  onExpandedChange,
   vehicleRouteIds,
   transitStopPath,
   onVehicleRouteFocus,
@@ -223,6 +227,20 @@ export function TransitRoutesPanel({
 
   const stepIndex = phase === "browse" ? 0 : phase === "directions" ? 1 : 2
 
+  if (!expanded) {
+    return (
+      <div className="pointer-events-auto absolute right-3 top-3 z-[500] sm:right-4 sm:top-4">
+        <button
+          type="button"
+          onClick={() => onExpandedChange(true)}
+          className="rounded-xl border border-zinc-200/90 bg-white/95 px-3 py-2 text-xs font-semibold text-teal-800 shadow-lg backdrop-blur-sm transition-colors hover:border-teal-400/60 hover:bg-teal-50/90 sm:px-3.5 sm:py-2.5"
+        >
+          Show transit
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div className="pointer-events-auto absolute right-3 top-3 z-[500] flex max-h-[min(70vh,28rem)] w-[min(100%,20rem)] flex-col overflow-hidden rounded-xl border border-zinc-200/90 bg-white/95 shadow-lg backdrop-blur-sm sm:right-4 sm:top-4 sm:max-h-[min(75vh,32rem)] sm:w-[22rem]">
       <div className="border-b border-zinc-200/80 px-3 py-2.5 sm:px-3.5">
@@ -233,15 +251,24 @@ export function TransitRoutesPanel({
               Route → direction → stops. The map updates at each step.
             </p>
           </div>
-          {(vehicleRouteIds || transitStopPath?.length) && (
+          <div className="flex shrink-0 flex-col items-end gap-1.5 sm:flex-row sm:items-center sm:gap-2">
             <button
               type="button"
-              onClick={resetFlow}
-              className="shrink-0 rounded-md border border-zinc-200 bg-white px-2 py-1 text-[11px] font-medium text-zinc-700 hover:bg-zinc-50"
+              onClick={() => onExpandedChange(false)}
+              className="rounded-md border border-zinc-200 bg-white px-2 py-1 text-[11px] font-medium text-zinc-700 hover:bg-zinc-50"
             >
-              Reset
+              Hide transit
             </button>
-          )}
+            {(vehicleRouteIds || transitStopPath?.length) && (
+              <button
+                type="button"
+                onClick={resetFlow}
+                className="rounded-md border border-zinc-200 bg-white px-2 py-1 text-[11px] font-medium text-zinc-700 hover:bg-zinc-50"
+              >
+                Reset
+              </button>
+            )}
+          </div>
         </div>
 
         {activeRoute && (
