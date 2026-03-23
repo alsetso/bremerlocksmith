@@ -25,13 +25,19 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-white">
       {/* Header */}
-      <header className="fixed top-0 left-0 right-0 bg-white border-b-2 border-red-600 z-50 shadow-sm">
+      <header className="fixed top-0 left-0 right-0 bg-white border-b-2 border-red-600 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             {/* Logo */}
             <div className="flex-shrink-0">
-              <Link href="/" className="text-xl font-black text-red-600 uppercase tracking-tight">
-                Bremer Locksmith
+              <Link href="/" className="leading-none max-w-[14rem] sm:max-w-none flex flex-col items-start gap-[5px] p-0">
+                <span className="inline-flex items-baseline gap-1 text-lg sm:text-xl font-black tracking-tight">
+                  <span className="text-[#5D4037]">MN</span>
+                  <span className="text-[#8B7355]">ISR</span>
+                </span>
+                <span className="block text-[5px] font-semibold text-gray-600 tracking-wide leading-none">
+                  Immediate Service Response
+                </span>
               </Link>
             </div>
 
@@ -282,7 +288,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
             <h2 className="text-2xl md:text-4xl font-black text-black uppercase tracking-tight mb-3">
-              Why Choose Bremer Locksmith?
+              Why Choose MNISR Immediate Service Response?
             </h2>
             <p className="text-lg text-gray-600 max-w-3xl mx-auto">
               Minnesota's most trusted locksmith service with a proven track record of reliability, 
@@ -373,8 +379,12 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid md:grid-cols-3 gap-6 mb-6">
             <div>
-              <h3 className="text-xl font-black text-red-600 uppercase tracking-tight mb-3">
-                Bremer Locksmith
+              <h3 className="text-xl font-black tracking-tight mb-3">
+                <span className="text-amber-700">MN</span>
+                <span className="text-[#E8E0D5]"> ISR</span>
+                <span className="block text-sm font-bold text-gray-400 normal-case tracking-normal mt-2">
+                  Immediate Service Response
+                </span>
               </h3>
               <p className="text-gray-300">
                 Professional locksmith services in Minnesota. Licensed, insured, and available 24/7 for your security needs.
@@ -402,7 +412,7 @@ export default function Home() {
 
           <div className="border-t border-gray-800 pt-6 text-center">
             <p className="text-gray-400">
-              &copy; 2024 Bremer Locksmith. All rights reserved.
+              &copy; 2024 MNISR Immediate Service Response. All rights reserved.
             </p>
           </div>
         </div>

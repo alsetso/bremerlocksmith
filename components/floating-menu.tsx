@@ -95,7 +95,7 @@ export function FloatingMenu({ userLocation }: FloatingMenuProps) {
             console.log('Setting modal open to true')
             setIsModalOpen(true)
           }}
-          className="bg-white text-black hover:bg-white/90 transition-all duration-200 hover:scale-105 shadow-2xl border-2 border-white/20 px-8 py-4 text-lg font-semibold rounded-xl"
+          className="bg-zinc-900 text-white hover:bg-zinc-800 transition-all duration-200 hover:scale-105 shadow-lg border-2 border-zinc-800 px-8 py-4 text-lg font-semibold rounded-xl"
         >
           Get Service
         </Button>

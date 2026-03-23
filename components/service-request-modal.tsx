@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { MapPin, Navigation, User, MessageSquare, Phone, CheckCircle, ArrowLeft, Car, Home, Building, X } from "lucide-react"
+import { Navigation, User, MessageSquare, Phone, CheckCircle, ArrowLeft, Car, Home, Building, X, Truck, Mountain } from "lucide-react"
 
 interface ServiceRequestModalProps {
   isOpen: boolean
@@ -10,12 +10,12 @@ interface ServiceRequestModalProps {
   userLocation: [number, number]
   userAddress: string
   coordinates: string
-  initialServiceType?: "lockout" | "other"
+  initialServiceType?: "lockout" | "other" | "towing" | "ditch_recovery"
   initialLockoutType?: "car" | "house" | "business"
 }
 
 interface TechnicianRequest {
-  serviceType: "lockout" | "other" | ""
+  serviceType: "lockout" | "other" | "towing" | "ditch_recovery" | ""
   lockoutType: "car" | "house" | "business" | ""
   customerName: string
   phoneNumber: string
@@ -43,8 +43,21 @@ export function ServiceRequestModal({
   })
   const [submissionTime, setSubmissionTime] = useState<string>("")
 
-  const handleServiceTypeSelect = (serviceType: "lockout" | "other") => {
-    setRequest(prev => ({ ...prev, serviceType }))
+  const serviceSummaryLabel = (r: TechnicianRequest) => {
+    if (r.serviceType === "lockout") {
+      return `Emergency Lockout${r.lockoutType ? ` - ${r.lockoutType.charAt(0).toUpperCase()}${r.lockoutType.slice(1)}` : ""}`
+    }
+    if (r.serviceType === "towing") return "Towing"
+    if (r.serviceType === "ditch_recovery") return "Ditch Recovery"
+    return "Other Key Services"
+  }
+
+  const handleServiceTypeSelect = (serviceType: "lockout" | "other" | "towing" | "ditch_recovery") => {
+    setRequest(prev => ({
+      ...prev,
+      serviceType,
+      lockoutType: serviceType === "lockout" ? prev.lockoutType : "",
+    }))
     if (serviceType === "lockout") {
       setStep("lockout-type")
     } else {
@@ -186,7 +199,7 @@ export function ServiceRequestModal({
               <div className="space-y-3 sm:space-y-4">
                 <div className="text-center">
                   <h3 className="text-base sm:text-lg font-semibold text-foreground mb-1 sm:mb-2">What service do you need?</h3>
-                  <p className="text-xs sm:text-sm text-muted-foreground">Select the type of locksmith service</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground">Select the type of service</p>
                 </div>
                 
                 <div className="space-y-2 sm:space-y-3">
@@ -198,6 +211,24 @@ export function ServiceRequestModal({
                   >
                     <div className="w-3 h-3 bg-red-500 rounded-full mr-3"></div>
                     Emergency Lockout
+                  </Button>
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    onClick={() => handleServiceTypeSelect("towing")}
+                    className="w-full justify-start h-10 sm:h-12"
+                  >
+                    <Truck className="w-5 h-5 mr-3 text-amber-700 shrink-0" />
+                    Towing
+                  </Button>
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    onClick={() => handleServiceTypeSelect("ditch_recovery")}
+                    className="w-full justify-start h-10 sm:h-12"
+                  >
+                    <Mountain className="w-5 h-5 mr-3 text-stone-600 shrink-0" />
+                    Ditch Recovery
                   </Button>
                   <Button
                     size="lg"
@@ -357,8 +388,7 @@ export function ServiceRequestModal({
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-muted-foreground">Service:</span>
                     <span className="text-sm font-medium text-foreground">
-                      {request.serviceType === "lockout" ? "Emergency Lockout" : "Other Key Services"}
-                      {request.lockoutType && ` - ${request.lockoutType.charAt(0).toUpperCase() + request.lockoutType.slice(1)}`}
+                      {serviceSummaryLabel(request)}
                     </span>
                   </div>
                   <div className="flex justify-between items-center">
@@ -408,8 +438,7 @@ export function ServiceRequestModal({
                   <div className="border-t border-foreground/10 pt-4">
                     <div className="text-sm text-muted-foreground mb-2">Service Request:</div>
                     <div className="text-sm text-foreground">
-                      {request.serviceType === "lockout" ? "Emergency Lockout" : "Other Key Services"}
-                      {request.lockoutType && ` - ${request.lockoutType.charAt(0).toUpperCase() + request.lockoutType.slice(1)}`}
+                      {serviceSummaryLabel(request)}
                     </div>
                     <div className="text-sm text-foreground mt-1">
                       {request.customerName} • {request.phoneNumber}

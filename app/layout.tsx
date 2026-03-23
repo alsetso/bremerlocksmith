@@ -8,8 +8,9 @@ const _geist = Geist({ subsets: ["latin"] })
 const _geistMono = Geist_Mono({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "Bremer Locksmith - 24/7 Emergency Service",
-  description: "Professional locksmith services available 24/7. Fast, reliable, and secure.",
+  title: "MNISR Immediate Service Response - 24/7 Emergency Service",
+  description:
+    "MNISR Immediate Service Response — professional locksmith services available 24/7. Fast, reliable, and secure.",
   generator: "v0.app",
   viewport: {
     width: "device-width",

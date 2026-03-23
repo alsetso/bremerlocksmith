@@ -3,10 +3,24 @@ import { NextRequest, NextResponse } from 'next/server'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
+function formatServiceType(serviceType: string, lockoutType?: string) {
+  if (serviceType === 'lockout') {
+    const base = 'Emergency Lockout'
+    return lockoutType
+      ? `${base} - ${lockoutType.charAt(0).toUpperCase() + lockoutType.slice(1)}`
+      : base
+  }
+  if (serviceType === 'towing') return 'Towing'
+  if (serviceType === 'ditch_recovery') return 'Ditch Recovery'
+  return 'Other Key Services'
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const { serviceType, lockoutType, customerName, phoneNumber, notes, userAddress, coordinates } = body
+
+    const serviceLabel = formatServiceType(serviceType, lockoutType)
 
     // Create email content with spam-friendly format
     const emailContent = `
@@ -25,7 +39,7 @@ export async function POST(request: NextRequest) {
             <table style="width: 100%; border-collapse: collapse;">
               <tr>
                 <td style="padding: 10px; border-bottom: 1px solid #dee2e6; font-weight: bold; color: #495057; width: 30%;">Service Type:</td>
-                <td style="padding: 10px; border-bottom: 1px solid #dee2e6; color: #212529;">${serviceType === 'lockout' ? 'Emergency Lockout' : 'Other Key Services'}${lockoutType ? ` - ${lockoutType.charAt(0).toUpperCase() + lockoutType.slice(1)}` : ''}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #dee2e6; color: #212529;">${serviceLabel}</td>
               </tr>
               <tr>
                 <td style="padding: 10px; border-bottom: 1px solid #dee2e6; font-weight: bold; color: #495057;">Customer Name:</td>
@@ -58,7 +72,7 @@ export async function POST(request: NextRequest) {
           </div>
           
           <div style="text-align: center; padding-top: 15px; border-top: 1px solid #dee2e6;">
-            <p style="margin: 0; font-size: 14px; color: #6c757d;">Bremer Locksmith</p>
+            <p style="margin: 0; font-size: 14px; color: #6c757d;">MNISR Immediate Service Response</p>
             <p style="margin: 5px 0 0 0; font-size: 14px; color: #6c757d;">24/7 Emergency Service • Licensed & Insured</p>
             <p style="margin: 5px 0 0 0; font-size: 12px; color: #6c757d;">Minnesota</p>
           </div>
@@ -70,13 +84,13 @@ export async function POST(request: NextRequest) {
     const { data, error } = await resend.emails.send({
       from: process.env.FROM_EMAIL || 'noreply@bremerlocksmith.com',
       to: [process.env.ADMIN_EMAIL || 'alsetsolutionsinc@gmail.com'],
-      subject: `Locksmith Service Request - ${serviceType === 'lockout' ? 'Emergency Lockout' : 'Key Services'} - ${customerName}`,
+      subject: `Service Request - ${serviceLabel} - ${customerName}`,
       html: emailContent,
       // Add text version for better deliverability
       text: `
 Locksmith Service Request
 
-Service Type: ${serviceType === 'lockout' ? 'Emergency Lockout' : 'Other Key Services'}${lockoutType ? ` - ${lockoutType.charAt(0).toUpperCase() + lockoutType.slice(1)}` : ''}
+Service Type: ${serviceLabel}
 Customer Name: ${customerName}
 Phone Number: ${phoneNumber}
 Location: ${userAddress}
@@ -85,14 +99,14 @@ ${notes ? `Additional Notes: ${notes}` : ''}
 
 URGENT: Customer needs immediate assistance. Please contact the customer as soon as possible to confirm dispatch.
 
-Bremer Locksmith - 24/7 Emergency Service - Licensed & Insured
+MNISR Immediate Service Response - 24/7 Emergency Service - Licensed & Insured
       `,
       // Add headers to improve deliverability
       headers: {
         'X-Priority': '1',
         'X-MSMail-Priority': 'High',
         'Importance': 'high',
-        'X-Mailer': 'Bremer Locksmith System',
+        'X-Mailer': 'MNISR Immediate Service Response',
         'Reply-To': process.env.FROM_EMAIL || 'noreply@bremerlocksmith.com',
       },
       // Add tags for better tracking
