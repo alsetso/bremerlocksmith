@@ -18,13 +18,15 @@ const navItems = [
 
 interface NavigationProps {
   userLocation?: [number, number] | null
+  /** Shown under the logo when the user chose an address manually (vs. GPS reverse-geocode). */
+  locationDisplayLabel?: string | null
   frameClassName?: string
 }
 
 type OverlayMode = "menu" | "auth"
 type AuthMode = "sign-in" | "sign-up"
 
-export function Navigation({ userLocation, frameClassName }: NavigationProps = {}) {
+export function Navigation({ userLocation, locationDisplayLabel, frameClassName }: NavigationProps = {}) {
   const PHONE_DISPLAY = "(952) 923 0248"
   const PHONE_E164 = "+19529230248"
 
@@ -47,6 +49,12 @@ export function Navigation({ userLocation, frameClassName }: NavigationProps = {
 
   useEffect(() => {
     let cancelled = false
+
+    const override = locationDisplayLabel?.trim()
+    if (override) {
+      setHeaderLocation(override)
+      return
+    }
 
     if (!userLocation) {
       setHeaderLocation("Minnesota, MN")
@@ -90,7 +98,7 @@ export function Navigation({ userLocation, frameClassName }: NavigationProps = {
     return () => {
       cancelled = true
     }
-  }, [userLocation])
+  }, [userLocation, locationDisplayLabel])
 
   useEffect(() => {
     const supabase = getSupabaseBrowserClient()
@@ -235,7 +243,12 @@ export function Navigation({ userLocation, frameClassName }: NavigationProps = {
                 <span className="font-serif text-sm font-semibold tracking-tight text-white sm:text-base md:text-lg">
                   BREMER
                 </span>
-                <span className="text-[6px] leading-none text-zinc-200/90">{headerLocation}</span>
+                <span
+                  className="max-w-[9rem] truncate text-[6px] leading-none text-zinc-200/90 sm:max-w-[12rem]"
+                  title={headerLocation}
+                >
+                  {headerLocation}
+                </span>
               </span>
             </h1>
           </Link>

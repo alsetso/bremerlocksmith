@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import {
   Navigation,
@@ -14,9 +15,9 @@ import {
   Building,
   X,
   Truck,
+  BusFront,
   Mountain,
   KeyRound,
-  Wrench,
 } from "lucide-react"
 
 interface ServiceRequestModalProps {
@@ -25,29 +26,37 @@ interface ServiceRequestModalProps {
   userLocation: [number, number]
   userAddress: string
   coordinates: string
+  /** No confirmed address yet (e.g. user skipped location). */
+  locationPending?: boolean
+  /** User picked a place name / address instead of live GPS. */
+  addressLabel?: string | null
+  /** Opens the location picker (search, map pin, or live GPS) below the map. */
+  onEditLocation?: () => void
   initialServiceType?: "lockout" | "other" | "towing" | "ditch_recovery"
-  initialLockoutType?: "car" | "house" | "business"
+  initialLockoutType?: "car" | "house" | "business" | "truck" | "semi"
+  variant?: "overlay" | "inline"
 }
 
 interface TechnicianRequest {
   serviceType: "lockout" | "other" | "towing" | "ditch_recovery" | ""
-  lockoutType: "car" | "house" | "business" | ""
+  lockoutType: "car" | "house" | "business" | "truck" | "semi" | ""
   customerName: string
   phoneNumber: string
   notes: string
 }
 
-const shellBorder = "border-[#c9b8a3]"
-const paper = "bg-[#faf7f2]"
-const cream = "bg-[#fffef9]"
-const ink = "text-[#3e2723]"
-const muted = "text-[#5d4037]/90"
-const btnOutline =
-  "w-full justify-start border-[#c9b8a3] bg-[#fffef9] text-[#3e2723] hover:bg-[#f5efe6] hover:text-[#2d1f1c] hover:border-[#bdae9c] h-10 sm:h-12 font-medium shadow-sm"
+const ink = "text-zinc-100"
+const muted = "text-zinc-400"
+const btnChoice =
+  "group w-full cursor-pointer touch-manipulation justify-start gap-3 border border-zinc-600/80 bg-zinc-900/40 text-zinc-100 shadow-none transition-colors duration-150 h-11 sm:h-12 font-medium hover:border-zinc-500 hover:bg-zinc-800/80 active:scale-[0.99] active:border-zinc-500 active:bg-zinc-900/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400/50 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 [&_svg]:transition-colors [&_svg]:group-hover:text-zinc-100"
 const inputClass =
-  "w-full rounded-sm border border-[#c9b8a3] bg-[#fffef9] py-3 text-sm text-[#3e2723] placeholder:text-[#8d7b68]/80 focus:border-[#8d7b68] focus:outline-none focus:ring-2 focus:ring-[#8d7b68]/25"
+  "w-full cursor-text rounded-md border border-zinc-600/80 bg-zinc-950/80 py-2.5 pl-10 pr-3 text-sm text-zinc-100 shadow-none transition-colors duration-150 placeholder:text-zinc-500 hover:border-zinc-500/70 hover:bg-zinc-900/60 focus:border-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-500/35 focus:ring-offset-0 active:border-zinc-500"
 const btnPrimary =
-  "w-full border border-[#4a342c] bg-[#5D4037] text-[#faf7f2] hover:bg-[#4a342c] h-12 font-semibold shadow-sm disabled:opacity-45"
+  "w-full cursor-pointer touch-manipulation border border-zinc-300 bg-zinc-100 text-zinc-900 shadow-none transition-all duration-150 h-11 font-semibold hover:bg-white hover:border-zinc-200 active:scale-[0.99] active:bg-zinc-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-300 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 disabled:pointer-events-none disabled:opacity-45"
+const headerBtn =
+  "cursor-pointer touch-manipulation transition-colors duration-150 hover:bg-zinc-800 hover:text-zinc-100 active:bg-zinc-700 active:text-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500/45 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
+const btnComingSoon =
+  `${btnChoice} !cursor-not-allowed border-zinc-700/50 !opacity-65 hover:!border-zinc-700/50 hover:!bg-zinc-900/40 active:!scale-100 [&_svg]:!text-zinc-500`
 
 export function ServiceRequestModal({
   isOpen,
@@ -55,9 +64,15 @@ export function ServiceRequestModal({
   userLocation,
   userAddress,
   coordinates,
+  locationPending = false,
+  addressLabel,
+  onEditLocation,
   initialServiceType,
   initialLockoutType,
+  variant = "overlay",
 }: ServiceRequestModalProps) {
+  const inline = variant === "inline"
+  const isLiveLocation = !locationPending && !addressLabel?.trim()
   const [step, setStep] = useState<"service" | "lockout-type" | "details" | "confirm" | "submitted">(
     initialServiceType ? (initialServiceType === "lockout" && !initialLockoutType ? "lockout-type" : "details") : "service",
   )
@@ -72,27 +87,48 @@ export function ServiceRequestModal({
 
   const serviceSummaryLabel = (r: TechnicianRequest) => {
     if (r.serviceType === "lockout") {
-      return `Emergency Lockout${r.lockoutType ? ` - ${r.lockoutType.charAt(0).toUpperCase()}${r.lockoutType.slice(1)}` : ""}`
+      return `Emergency Lockout${r.lockoutType ? ` — ${r.lockoutType.charAt(0).toUpperCase()}${r.lockoutType.slice(1)}` : ""}`
     }
     if (r.serviceType === "towing") return "Towing"
     if (r.serviceType === "ditch_recovery") return "Ditch Recovery"
     return "Other Key Services"
   }
 
-  const handleServiceTypeSelect = (serviceType: "lockout" | "other" | "towing" | "ditch_recovery") => {
+  const { stepIndex, totalSteps, stepLabel } = useMemo(() => {
+    const lockoutPath = request.serviceType === "lockout"
+    const order: { id: typeof step; label: string }[] = lockoutPath
+      ? [
+          { id: "service", label: "Service" },
+          { id: "lockout-type", label: "Type" },
+          { id: "details", label: "Contact" },
+          { id: "confirm", label: "Review" },
+          { id: "submitted", label: "Done" },
+        ]
+      : [
+          { id: "service", label: "Service" },
+          { id: "details", label: "Contact" },
+          { id: "confirm", label: "Review" },
+          { id: "submitted", label: "Done" },
+        ]
+    const idx = order.findIndex((s) => s.id === step)
+    const current = order[Math.max(0, idx)]?.label ?? ""
+    return {
+      stepIndex: idx >= 0 ? idx + 1 : 1,
+      totalSteps: order.length,
+      stepLabel: current,
+    }
+  }, [step, request.serviceType])
+
+  const handleServiceTypeSelect = (serviceType: "lockout") => {
     setRequest((prev) => ({
       ...prev,
       serviceType,
-      lockoutType: serviceType === "lockout" ? prev.lockoutType : "",
+      lockoutType: prev.lockoutType,
     }))
-    if (serviceType === "lockout") {
-      setStep("lockout-type")
-    } else {
-      setStep("details")
-    }
+    setStep("lockout-type")
   }
 
-  const handleLockoutTypeSelect = (lockoutType: "car" | "house" | "business") => {
+  const handleLockoutTypeSelect = (lockoutType: "car" | "house" | "business" | "truck" | "semi") => {
     setRequest((prev) => ({ ...prev, lockoutType }))
     setStep("details")
   }
@@ -129,7 +165,7 @@ export function ServiceRequestModal({
           phoneNumber: request.phoneNumber,
           notes: request.notes,
           userAddress: userAddress,
-          coordinates: coordinates,
+          coordinates: coordinates.trim() || "Not provided",
         }),
       })
 
@@ -172,272 +208,299 @@ export function ServiceRequestModal({
     onClose()
   }
 
+  const showBackButton = step !== "submitted"
+  const handleBackPress = () => {
+    if (step === "service") {
+      handleClose()
+    } else {
+      handleBack()
+    }
+  }
+
   if (!isOpen) {
     return null
   }
 
-  return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-4">
-      <div
-        className="absolute inset-0 bg-[#3e2723]/45 backdrop-blur-[2px]"
-        onClick={handleClose}
-        aria-hidden
-      />
+  const scrollClass = inline ? "min-h-0 flex-1 overflow-y-auto" : "max-h-[calc(85vh-120px)] overflow-y-auto sm:max-h-[calc(90vh-140px)]"
 
-      <div
-        className={`relative max-h-[85vh] w-full max-w-sm overflow-hidden rounded-sm border ${shellBorder} shadow-[0_8px_40px_rgba(62,39,35,0.18)] sm:max-h-[90vh] sm:max-w-md ${paper}`}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="service-modal-title"
-      >
-        <div className={`flex items-center justify-between border-b ${shellBorder} px-3 py-3 sm:px-4`}>
-          <div className="flex items-center gap-2.5">
-            <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#a34e3d]/40" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-[#8b4a3c]" />
-            </span>
-            <span id="service-modal-title" className={`font-serif text-sm font-semibold ${ink}`}>
-              Service request
-            </span>
-          </div>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={handleClose}
-            className="h-8 w-8 p-0 text-[#4a342c] hover:bg-[#efe8dd]"
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
+  const shellOuter = inline
+    ? "relative flex min-h-0 w-full flex-1 flex-col overflow-hidden text-zinc-200"
+    : "relative flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-zinc-700/90 bg-zinc-950 text-zinc-200 shadow-2xl"
 
-        <div className={`border-b ${shellBorder} bg-[#efe8dd] px-3 py-3 sm:px-4`}>
-          <div className="mb-1 flex items-center gap-2">
-            <span className={`truncate text-xs font-medium ${ink}`}>{userAddress}</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <Navigation className="h-3 w-3 shrink-0 text-[#6d4c41]" aria-hidden />
-            <p className="font-mono text-[10px] text-[#5d4037]/85">{coordinates}</p>
+  const panelShell = (
+    <div className={shellOuter} role="dialog" aria-modal="true" aria-labelledby="service-modal-title">
+      <div className="flex shrink-0 items-center justify-between gap-2 px-1 pb-2 pt-0 sm:px-0">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          {showBackButton ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={handleBackPress}
+              aria-label={step === "service" ? "Back to quick actions" : "Back"}
+              className={`h-8 shrink-0 px-2 text-zinc-400 ${headerBtn}`}
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          ) : (
+            <span className="w-8 shrink-0" aria-hidden />
+          )}
+          <div className="min-w-0">
+            <h2 id="service-modal-title" className={`truncate font-serif text-sm font-semibold ${ink}`}>
+              {step === "submitted" ? "Request sent" : "Get service"}
+            </h2>
+            {step !== "submitted" && (
+              <p className={`text-[10px] uppercase tracking-[0.14em] ${muted}`}>
+                Step {stepIndex} of {totalSteps} · {stepLabel}
+              </p>
+            )}
           </div>
         </div>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          onClick={handleClose}
+          className={`h-8 w-8 shrink-0 p-0 text-zinc-400 ${headerBtn}`}
+        >
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
 
-        <div className="max-h-[calc(85vh-100px)] overflow-y-auto sm:max-h-[calc(90vh-120px)]">
-          <div className="p-3 sm:p-4">
-            {step === "service" && (
-              <div className="space-y-3 sm:space-y-4">
-                <div className="text-center">
-                  <h3 className={`mb-1 font-serif text-base font-semibold sm:mb-2 sm:text-lg ${ink}`}>
-                    What service do you need?
-                  </h3>
-                  <p className={`text-xs sm:text-sm ${muted}`}>Select the type of service</p>
-                </div>
-
-                <div className="space-y-2 sm:space-y-3">
-                  <Button size="lg" variant="outline" onClick={() => handleServiceTypeSelect("lockout")} className={btnOutline}>
-                    <KeyRound className="mr-3 h-5 w-5 shrink-0 text-[#5D4037]" strokeWidth={1.65} />
-                    Emergency Lockout
-                  </Button>
-                  <Button size="lg" variant="outline" onClick={() => handleServiceTypeSelect("towing")} className={btnOutline}>
-                    <Truck className="mr-3 h-5 w-5 shrink-0 text-[#5D4037]" strokeWidth={1.65} />
-                    Towing
-                  </Button>
-                  <Button size="lg" variant="outline" onClick={() => handleServiceTypeSelect("ditch_recovery")} className={btnOutline}>
-                    <Mountain className="mr-3 h-5 w-5 shrink-0 text-[#5D4037]" strokeWidth={1.65} />
-                    Ditch Recovery
-                  </Button>
-                  <Button size="lg" variant="outline" onClick={() => handleServiceTypeSelect("other")} className={btnOutline}>
-                    <Wrench className="mr-3 h-5 w-5 shrink-0 text-[#5D4037]" strokeWidth={1.65} />
-                    Other Key Services
-                  </Button>
-                </div>
-              </div>
+      <div className={`shrink-0 space-y-2 border-b border-zinc-700/60 pb-3 text-[11px] ${muted}`}>
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+            {locationPending ? (
+              <span className="shrink-0 rounded-md border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-200/90">
+                Location needed
+              </span>
+            ) : isLiveLocation ? (
+              <span className="shrink-0 rounded-md border border-emerald-500/35 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-emerald-300/90">
+                Live location
+              </span>
+            ) : (
+              <span className="shrink-0 rounded-md border border-sky-500/35 bg-sky-500/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-sky-300/90">
+                Saved address
+              </span>
             )}
+          </div>
+          {onEditLocation ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={onEditLocation}
+              className="h-auto shrink-0 px-1.5 py-0.5 text-[11px] font-medium text-sky-300/90 hover:bg-zinc-800/80 hover:text-sky-200 hover:underline"
+            >
+              Change location
+            </Button>
+          ) : null}
+        </div>
+        <p className="line-clamp-3 leading-snug">{userAddress}</p>
+        {coordinates.trim() ? (
+          <div className="flex items-center gap-1.5 font-mono text-[10px] text-zinc-500">
+            <Navigation className="h-3 w-3 shrink-0" aria-hidden />
+            {coordinates}
+          </div>
+        ) : null}
+      </div>
 
-            {step === "lockout-type" && (
-              <div className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <Button size="sm" variant="ghost" onClick={handleBack} className="p-2 text-[#4a342c] hover:bg-[#efe8dd]">
-                    <ArrowLeft className="h-4 w-4" />
-                  </Button>
-                  <div>
-                    <h3 className={`font-serif text-lg font-semibold ${ink}`}>What type of lockout?</h3>
-                    <p className={`text-sm ${muted}`}>Help us understand your situation</p>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <Button size="lg" variant="outline" onClick={() => handleLockoutTypeSelect("car")} className={btnOutline + " h-12"}>
-                    <Car className="mr-3 h-5 w-5 text-[#5D4037]" strokeWidth={1.65} />
-                    Car Lockout
-                  </Button>
-                  <Button size="lg" variant="outline" onClick={() => handleLockoutTypeSelect("house")} className={btnOutline + " h-12"}>
-                    <Home className="mr-3 h-5 w-5 text-[#5D4037]" strokeWidth={1.65} />
-                    House Lockout
-                  </Button>
-                  <Button size="lg" variant="outline" onClick={() => handleLockoutTypeSelect("business")} className={btnOutline + " h-12"}>
-                    <Building className="mr-3 h-5 w-5 text-[#5D4037]" strokeWidth={1.65} />
-                    Business Lockout
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {step === "details" && (
-              <div className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <Button size="sm" variant="ghost" onClick={handleBack} className="p-2 text-[#4a342c] hover:bg-[#efe8dd]">
-                    <ArrowLeft className="h-4 w-4" />
-                  </Button>
-                  <div>
-                    <h3 className={`font-serif text-lg font-semibold ${ink}`}>Your details</h3>
-                    <p className={`text-sm ${muted}`}>We need your contact information</p>
-                  </div>
-                </div>
-
-                <div>
-                  <label className={`mb-2 block text-sm font-medium ${ink}`}>Your name *</label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#6d4c41]" />
-                    <input
-                      type="text"
-                      value={request.customerName}
-                      onChange={(e) => setRequest((prev) => ({ ...prev, customerName: e.target.value }))}
-                      placeholder="Enter your full name"
-                      className={`${inputClass} rounded-sm pl-10 pr-4`}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className={`mb-2 block text-sm font-medium ${ink}`}>Phone number *</label>
-                  <div className="relative">
-                    <Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#6d4c41]" />
-                    <input
-                      type="tel"
-                      value={request.phoneNumber}
-                      onChange={(e) => setRequest((prev) => ({ ...prev, phoneNumber: e.target.value }))}
-                      placeholder="(XXX) XXX-XXXX"
-                      className={`${inputClass} rounded-sm pl-10 pr-4`}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className={`mb-2 block text-sm font-medium ${ink}`}>Additional notes</label>
-                  <div className="relative">
-                    <MessageSquare className="absolute left-3 top-3 h-4 w-4 text-[#6d4c41]" />
-                    <textarea
-                      value={request.notes}
-                      onChange={(e) => setRequest((prev) => ({ ...prev, notes: e.target.value }))}
-                      placeholder="Describe your situation…"
-                      rows={4}
-                      className={`${inputClass} resize-none rounded-sm pl-10 pr-4`}
-                    />
-                  </div>
-                </div>
-
+      <div className={scrollClass}>
+        <div className="space-y-4 px-0 py-3 sm:py-4">
+          {step === "service" && (
+            <div className="space-y-3">
+              <p className={`text-xs ${muted}`}>What do you need?</p>
+              <div className="space-y-2">
+                <Button type="button" size="lg" variant="outline" onClick={() => handleServiceTypeSelect("lockout")} className={btnChoice}>
+                  <KeyRound className="h-5 w-5 shrink-0 text-zinc-300" strokeWidth={1.65} />
+                  Emergency Lockout
+                </Button>
                 <Button
+                  type="button"
                   size="lg"
-                  disabled={!request.customerName.trim() || !request.phoneNumber.trim()}
-                  onClick={handleNextToConfirm}
-                  className={`${btnPrimary} transition-opacity disabled:cursor-not-allowed`}
+                  variant="outline"
+                  onClick={() => toast.info("Towing is coming soon")}
+                  className={btnComingSoon}
                 >
-                  <CheckCircle className="mr-2 h-5 w-5" strokeWidth={1.75} />
-                  Continue to confirm
+                  <Truck className="h-5 w-5 shrink-0 text-zinc-300" strokeWidth={1.65} />
+                  <span className="flex flex-col items-start gap-0.5 text-left">
+                    <span>Towing</span>
+                    <span className="text-[11px] font-normal normal-case tracking-normal text-zinc-500">Coming soon</span>
+                  </span>
+                </Button>
+                <Button
+                  type="button"
+                  size="lg"
+                  variant="outline"
+                  onClick={() => toast.info("Ditch recovery is coming soon")}
+                  className={btnComingSoon}
+                >
+                  <Mountain className="h-5 w-5 shrink-0 text-zinc-300" strokeWidth={1.65} />
+                  <span className="flex flex-col items-start gap-0.5 text-left">
+                    <span>Ditch Recovery</span>
+                    <span className="text-[11px] font-normal normal-case tracking-normal text-zinc-500">Coming soon</span>
+                  </span>
                 </Button>
               </div>
-            )}
+            </div>
+          )}
 
-            {step === "confirm" && (
-              <div className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <Button size="sm" variant="ghost" onClick={handleBack} className="p-2 text-[#4a342c] hover:bg-[#efe8dd]">
-                    <ArrowLeft className="h-4 w-4" />
-                  </Button>
-                  <div className="flex items-center gap-2">
-                    <CheckCircle className="h-5 w-5 text-[#5c6b4a]" strokeWidth={1.75} />
-                    <h3 className={`font-serif text-lg font-semibold ${ink}`}>Confirm request</h3>
-                  </div>
-                </div>
-
-                <div className={`space-y-3 rounded-sm border ${shellBorder} ${cream} p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]`}>
-                  <div className="flex items-center justify-between">
-                    <span className={`text-sm ${muted}`}>Service</span>
-                    <span className={`text-sm font-medium ${ink}`}>{serviceSummaryLabel(request)}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className={`text-sm ${muted}`}>Customer</span>
-                    <span className={`text-sm font-medium ${ink}`}>{request.customerName}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className={`text-sm ${muted}`}>Phone</span>
-                    <span className={`text-sm font-medium ${ink}`}>{request.phoneNumber}</span>
-                  </div>
-                  {request.notes ? (
-                    <div className={`border-t ${shellBorder} pt-3`}>
-                      <span className={`mb-2 block text-sm ${muted}`}>Notes</span>
-                      <span className={`text-sm ${ink}`}>{request.notes}</span>
-                    </div>
-                  ) : null}
-                </div>
-
-                <Button size="lg" onClick={handleConfirmRequest} className={btnPrimary}>
-                  <CheckCircle className="mr-2 h-5 w-5" strokeWidth={1.75} />
-                  Confirm & dispatch
+          {step === "lockout-type" && (
+            <div className="space-y-3">
+              <p className={`text-xs ${muted}`}>Where are you locked out?</p>
+              <div className="space-y-2">
+                <Button type="button" size="lg" variant="outline" onClick={() => handleLockoutTypeSelect("car")} className={btnChoice}>
+                  <Car className="h-5 w-5 text-zinc-300" strokeWidth={1.65} />
+                  Car
+                </Button>
+                <Button type="button" size="lg" variant="outline" onClick={() => handleLockoutTypeSelect("house")} className={btnChoice}>
+                  <Home className="h-5 w-5 text-zinc-300" strokeWidth={1.65} />
+                  House
+                </Button>
+                <Button type="button" size="lg" variant="outline" onClick={() => handleLockoutTypeSelect("business")} className={btnChoice}>
+                  <Building className="h-5 w-5 text-zinc-300" strokeWidth={1.65} />
+                  Business
+                </Button>
+                <Button type="button" size="lg" variant="outline" onClick={() => handleLockoutTypeSelect("truck")} className={btnChoice}>
+                  <Truck className="h-5 w-5 text-zinc-300" strokeWidth={1.65} />
+                  Truck
+                </Button>
+                <Button type="button" size="lg" variant="outline" onClick={() => handleLockoutTypeSelect("semi")} className={btnChoice}>
+                  <BusFront className="h-5 w-5 text-zinc-300" strokeWidth={1.65} />
+                  Semi
                 </Button>
               </div>
-            )}
+            </div>
+          )}
 
-            {step === "submitted" && (
-              <div className="space-y-6">
-                <div className="text-center">
-                  <div
-                    className={`mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full border ${shellBorder} bg-[#efe8dd]`}
-                  >
-                    <CheckCircle className="h-10 w-10 text-[#5D4037]" strokeWidth={1.5} />
-                  </div>
-                  <h3 className={`mb-2 font-serif text-xl font-semibold ${ink}`}>Request submitted</h3>
-                  <p className={`text-sm ${muted}`}>Your request has been received.</p>
+          {step === "details" && (
+            <div className="space-y-4">
+              <p className={`text-xs ${muted}`}>How can we reach you?</p>
+              <div>
+                <label className={`mb-1.5 block text-[11px] font-medium ${ink}`}>Name *</label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+                  <input
+                    type="text"
+                    value={request.customerName}
+                    onChange={(e) => setRequest((prev) => ({ ...prev, customerName: e.target.value }))}
+                    placeholder="Full name"
+                    className={inputClass}
+                  />
                 </div>
-
-                <div className={`space-y-4 rounded-sm border ${shellBorder} ${cream} p-4`}>
-                  <div className="text-center">
-                    <div className={`mb-1 text-sm ${muted}`}>Submitted at</div>
-                    <div className={`font-mono text-base ${ink}`}>{submissionTime}</div>
-                  </div>
-
-                  <div className={`border-t ${shellBorder} pt-4`}>
-                    <div className={`mb-2 text-sm ${muted}`}>Service request</div>
-                    <div className={`text-sm ${ink}`}>{serviceSummaryLabel(request)}</div>
-                    <div className={`mt-1 text-sm ${ink}`}>
-                      {request.customerName} · {request.phoneNumber}
-                    </div>
-                  </div>
-                </div>
-
-                <div className={`rounded-sm border ${shellBorder} bg-[#faf6f0] p-4`}>
-                  <div className="mb-3 flex items-center gap-2">
-                    <Phone className="h-5 w-5 text-[#5D4037]" strokeWidth={1.65} />
-                    <span className={`font-serif text-base font-semibold ${ink}`}>What happens next</span>
-                  </div>
-                  <p className={`text-sm leading-relaxed ${muted}`}>
-                    Our team will call you back within{" "}
-                    <span className="font-semibold text-[#4a342c]">15 minutes</span> when we can help with your
-                    request. Keep your phone nearby and consider answering unfamiliar numbers.
-                  </p>
-                </div>
-
-                <Button size="lg" onClick={handleNewRequest} className={btnPrimary}>
-                  Submit another request
-                </Button>
               </div>
-            )}
-          </div>
-        </div>
+              <div>
+                <label className={`mb-1.5 block text-[11px] font-medium ${ink}`}>Phone *</label>
+                <div className="relative">
+                  <Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+                  <input
+                    type="tel"
+                    value={request.phoneNumber}
+                    onChange={(e) => setRequest((prev) => ({ ...prev, phoneNumber: e.target.value }))}
+                    placeholder="(555) 555-5555"
+                    className={inputClass}
+                  />
+                </div>
+              </div>
+              <div>
+                <label className={`mb-1.5 block text-[11px] font-medium ${ink}`}>Notes</label>
+                <div className="relative">
+                  <MessageSquare className="absolute left-3 top-3 h-4 w-4 text-zinc-500" />
+                  <textarea
+                    value={request.notes}
+                    onChange={(e) => setRequest((prev) => ({ ...prev, notes: e.target.value }))}
+                    placeholder="Anything else we should know…"
+                    rows={3}
+                    className={`${inputClass} resize-none py-3`}
+                  />
+                </div>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="lg"
+                disabled={!request.customerName.trim() || !request.phoneNumber.trim()}
+                onClick={handleNextToConfirm}
+                className={`${btnPrimary} disabled:cursor-not-allowed`}
+              >
+                <CheckCircle className="mr-2 h-4 w-4" strokeWidth={1.75} />
+                Continue
+              </Button>
+            </div>
+          )}
 
-        <div className={`border-t ${shellBorder} bg-[#efe8dd]/80 px-3 py-3 text-center sm:px-4`}>
-          <p className="text-[10px] text-[#5d4037]/85 sm:text-xs">Licensed & insured · 24/7 emergency service</p>
+          {step === "confirm" && (
+            <div className="space-y-4">
+              <p className={`text-xs ${muted}`}>Review and send</p>
+              <dl className="space-y-3 text-sm">
+                <div className="flex justify-between gap-4 border-b border-zinc-700/50 pb-2">
+                  <dt className={muted}>Service</dt>
+                  <dd className={`text-right font-medium ${ink}`}>{serviceSummaryLabel(request)}</dd>
+                </div>
+                <div className="flex justify-between gap-4 border-b border-zinc-700/50 pb-2">
+                  <dt className={muted}>Name</dt>
+                  <dd className={`text-right font-medium ${ink}`}>{request.customerName}</dd>
+                </div>
+                <div className="flex justify-between gap-4 border-b border-zinc-700/50 pb-2">
+                  <dt className={muted}>Phone</dt>
+                  <dd className={`text-right font-medium ${ink}`}>{request.phoneNumber}</dd>
+                </div>
+                {request.notes ? (
+                  <div className="pt-1">
+                    <dt className={`mb-1 ${muted}`}>Notes</dt>
+                    <dd className={`${ink}`}>{request.notes}</dd>
+                  </div>
+                ) : null}
+              </dl>
+              <Button type="button" variant="ghost" size="lg" onClick={handleConfirmRequest} className={btnPrimary}>
+                <CheckCircle className="mr-2 h-4 w-4" strokeWidth={1.75} />
+                Confirm & dispatch
+              </Button>
+            </div>
+          )}
+
+          {step === "submitted" && (
+            <div className="space-y-5">
+              <div className="flex flex-col items-center gap-2 text-center">
+                <CheckCircle className="h-12 w-12 text-emerald-500/90" strokeWidth={1.5} />
+                <h3 className={`font-serif text-lg font-semibold ${ink}`}>We received your request</h3>
+                <p className={`text-sm ${muted}`}>Submitted {submissionTime}</p>
+              </div>
+              <div className={`space-y-2 text-sm ${muted}`}>
+                <p>
+                  <span className="text-zinc-300">{serviceSummaryLabel(request)}</span>
+                  <span className="text-zinc-600"> · </span>
+                  <span>{request.customerName}</span>
+                  <span className="text-zinc-600"> · </span>
+                  <span>{request.phoneNumber}</span>
+                </p>
+                <p className="leading-relaxed">
+                  We will call you back within <span className="font-medium text-zinc-300">15 minutes</span> when we can
+                  help. Keep your phone nearby.
+                </p>
+              </div>
+              <Button type="button" variant="ghost" size="lg" onClick={handleNewRequest} className={btnPrimary}>
+                Submit another request
+              </Button>
+            </div>
+          )}
         </div>
       </div>
+
+      <div className={`shrink-0 pt-2 text-center text-[10px] ${muted}`}>
+        We find licensed &amp; insured professionals 24/7 and get them the fastest route to you.
+      </div>
+    </div>
+  )
+
+  if (inline) {
+    return panelShell
+  }
+
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px]" onClick={handleClose} aria-hidden />
+      {panelShell}
     </div>
   )
 }

@@ -192,19 +192,6 @@
     }
   }
   
-  /* Ensure Get Service button is always visible */
-  .get-service-button {
-    position: fixed !important;
-    bottom: 1rem !important;
-    left: 50% !important;
-    transform: translateX(-50%) !important;
-    z-index: 1000 !important;
-  }
-}
-
-/* Leaflet: raster tiles use device pixels cleanly (pairs with detectRetina / @2x tile URLs) */
-.leaflet-container img.leaflet-tile {
-  image-rendering: auto;
 }
 
 /* Custom animations */
@@ -248,4 +235,17 @@
 
 .animate-pulse-subtle {
   animation: pulse-subtle 2s ease-in-out infinite;
+}
+
+/* Sonner: anchor to map area (.map-stack must be position: relative) */
+.map-stack [data-sonner-toaster] {
+  position: absolute !important;
+  top: 0.5rem !important;
+  right: 0.5rem !important;
+  left: auto !important;
+  bottom: auto !important;
+  transform: none !important;
+  width: auto !important;
+  max-width: min(16rem, calc(100% - 1rem)) !important;
+  z-index: 30 !important;
 }

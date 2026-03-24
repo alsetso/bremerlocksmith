@@ -1,16 +1,36 @@
 "use client"
 
 import { useEffect, useRef } from "react"
+import mapboxgl from "mapbox-gl"
 import type { TransitStopMapPoint } from "@/lib/nextrip"
 
 interface MapComponentProps {
-  userLocation: [number, number]
+  /** Map center + primary user pin (lat, lng); use a sensible default while the location modal is open */
+  mapCenter: [number, number]
   /** Single `route_id` or comma-separated IDs; when null/undefined, the vehicles API default (or env) applies */
   vehicleRouteIds?: string | null
   /** Ordered stop coordinates for polyline + markers; null clears the overlay */
   transitStopPath?: TransitStopMapPoint[] | null
   /** When false, buses and route/stop overlays are cleared and not polled */
   transitMapVisible?: boolean
+  /** When true, hide the blue “your location” pin, show `pickerPin`, and forward background clicks (not transit stops) */
+  locationPickerActive?: boolean
+  /** Picked coordinates while the location modal is open; purple marker */
+  pickerPin?: [number, number] | null
+  /** After user confirms a map tap in picker mode (see amber confirm popup). */
+  onLocationPick?: (lat: number, lng: number) => void
+  /** After user confirms a map tap in the popup (non–picker mode). */
+  onPrimaryLocationFromMap?: (lat: number, lng: number) => void
+  /** User confirmed a typed / searched address — blue pin + popup show this label (popup opens). */
+  selectedLocationLabel?: string | null
+  /** Show Mapbox geolocate (target) + “Find me” top-left whenever the map is in view (not tied to live mode). */
+  showFindMeControl?: boolean
+  /** Increment to programmatically trigger Find me (e.g. after “Use current location” in the panel). */
+  findMeTriggerNonce?: number
+  /** Browser returned a GPS fix — parent should set live location from device. */
+  onGeolocateSuccess?: (coords: [number, number]) => void
+  /** GPS denied / failed — parent should pin service location to map center (“dropped pin”). */
+  onGeolocateFallback?: (coords: [number, number]) => void
 }
 
 function escapePopupText(s: string) {
@@ -20,6 +40,7 @@ function escapePopupText(s: string) {
 const METRO_POLL_MS = 10_000
 
 interface MetroVehicle {
+  id?: string
   trip_id?: string
   route_id?: string
   direction?: string
@@ -42,321 +63,637 @@ function isValidVehiclePosition(lat: number, lng: number) {
 
 const USER_VIEW_ZOOM = 13
 const FLY_TO_USER_DURATION_SEC = 1.05
+const TRANSIT_LINE_SOURCE = "transit-line"
+const TRANSIT_STOPS_SOURCE = "transit-stops"
+const TRANSIT_LINE_LAYER = "transit-line-layer"
+const TRANSIT_STOPS_LAYER = "transit-stops-layer"
 
 export function MapComponent({
-  userLocation,
+  mapCenter,
   vehicleRouteIds,
   transitStopPath,
   transitMapVisible = true,
+  locationPickerActive = false,
+  pickerPin = null,
+  onLocationPick,
+  onPrimaryLocationFromMap,
+  selectedLocationLabel = null,
+  showFindMeControl = false,
+  findMeTriggerNonce = 0,
+  onGeolocateSuccess,
+  onGeolocateFallback,
 }: MapComponentProps) {
   const mapRef = useRef<HTMLDivElement>(null)
-  const mapInstanceRef = useRef<any>(null)
-  const userLocationRef = useRef(userLocation)
-  userLocationRef.current = userLocation
+  const mapInstanceRef = useRef<mapboxgl.Map | null>(null)
+  const mapCenterRef = useRef(mapCenter)
+  mapCenterRef.current = mapCenter
+  const userMarkerRef = useRef<mapboxgl.Marker | null>(null)
+  const pickerMarkerRef = useRef<mapboxgl.Marker | null>(null)
+  /** Amber “proposed” pin until the user confirms or cancels in the popup. */
+  const pendingConfirmMarkerRef = useRef<mapboxgl.Marker | null>(null)
+  const locationPickerActiveRef = useRef(locationPickerActive)
+  locationPickerActiveRef.current = locationPickerActive
+  const onLocationPickRef = useRef(onLocationPick)
+  onLocationPickRef.current = onLocationPick
+  const onPrimaryLocationFromMapRef = useRef(onPrimaryLocationFromMap)
+  onPrimaryLocationFromMapRef.current = onPrimaryLocationFromMap
   const vehicleRouteIdsRef = useRef<string | null | undefined>(vehicleRouteIds)
   vehicleRouteIdsRef.current = vehicleRouteIds
   const transitStopPathRef = useRef<TransitStopMapPoint[] | null | undefined>(undefined)
   transitStopPathRef.current = transitStopPath ?? null
   const transitMapVisibleRef = useRef(transitMapVisible)
   transitMapVisibleRef.current = transitMapVisible
+  const pickerPinRef = useRef(pickerPin)
+  pickerPinRef.current = pickerPin
+  const selectedLocationLabelRef = useRef<string | null | undefined>(selectedLocationLabel)
+  selectedLocationLabelRef.current = selectedLocationLabel
+  const showFindMeControlRef = useRef(showFindMeControl)
+  showFindMeControlRef.current = showFindMeControl
+  const onGeolocateSuccessRef = useRef(onGeolocateSuccess)
+  onGeolocateSuccessRef.current = onGeolocateSuccess
+  const onGeolocateFallbackRef = useRef(onGeolocateFallback)
+  onGeolocateFallbackRef.current = onGeolocateFallback
 
   useEffect(() => {
-    mapInstanceRef.current?._refreshTransitOverlay?.()
+    ;(mapInstanceRef.current as any)?._refreshTransitOverlay?.()
   }, [transitStopPath])
 
   useEffect(() => {
     transitMapVisibleRef.current = transitMapVisible
-    mapInstanceRef.current?._refreshTransitOverlay?.()
-    mapInstanceRef.current?._updateMetroVehicles?.()
-    mapInstanceRef.current?._refitMainBounds?.()
+    ;(mapInstanceRef.current as any)?._refreshTransitOverlay?.()
+    ;(mapInstanceRef.current as any)?._updateMetroVehicles?.()
+    ;(mapInstanceRef.current as any)?._refitMainBounds?.()
   }, [transitMapVisible])
+
+  useEffect(() => {
+    pendingConfirmMarkerRef.current?.remove()
+    pendingConfirmMarkerRef.current = null
+  }, [mapCenter, locationPickerActive, pickerPin])
+
+  useEffect(() => {
+    ;(mapInstanceRef.current as any)?._syncUserPins?.()
+    void (mapInstanceRef.current as any)?._updateMetroVehicles?.()
+  }, [mapCenter, locationPickerActive, pickerPin, selectedLocationLabel])
+
+  useEffect(() => {
+    ;(mapInstanceRef.current as any)?._syncFindMeControl?.()
+  }, [showFindMeControl, locationPickerActive])
+
+  useEffect(() => {
+    if (findMeTriggerNonce <= 0) return
+    const trigger = (mapInstanceRef.current as { _triggerFindMe?: () => void } | null)?._triggerFindMe
+    void trigger?.()
+  }, [findMeTriggerNonce])
 
   useEffect(() => {
     if (!mapRef.current || mapInstanceRef.current) return
 
-    const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN
+    const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || process.env.NEXT_PUBLIC_MAPBOX_TOKEN
 
-    const initMap = () => {
-      if (typeof window !== "undefined" && (window as any).L) {
-        const L = (window as any).L
+    if (!mapboxToken) return
 
-        const map = L.map(mapRef.current, {
-          maxZoom: 20,
-          zoomSnap: 0.25,
-        })
+    let findMeControlInstance: mapboxgl.IControl | null = null
+    let geolocateForFindMe: mapboxgl.GeolocateControl | null = null
 
-        const flyToUserView = (animated: boolean) => {
-          const loc = userLocationRef.current
-          if (!loc?.length) return
-          const [lat, lng] = loc
-          if (typeof lat !== "number" || typeof lng !== "number" || Number.isNaN(lat) || Number.isNaN(lng)) return
-          if (animated) {
-            map.flyTo([lat, lng], USER_VIEW_ZOOM, {
-              duration: FLY_TO_USER_DURATION_SEC,
-              easeLinearity: 0.22,
-            })
-          } else {
-            map.setView([lat, lng], USER_VIEW_ZOOM, { animate: false })
-          }
-        }
+    mapboxgl.accessToken = mapboxToken
+    const [initialLat, initialLng] = mapCenterRef.current
+    const map = new mapboxgl.Map({
+      container: mapRef.current,
+      style: "mapbox://styles/mapbox/streets-v12",
+      center: [initialLng, initialLat],
+      zoom: USER_VIEW_ZOOM,
+      pitchWithRotate: false,
+      dragRotate: false,
+      attributionControl: true,
+    })
 
-        setTimeout(() => {
-          flyToUserView(true)
-        }, 50)
+    const vehicleMarkers = new Map<string, mapboxgl.Marker>()
 
-        const highDpi =
-          typeof window !== "undefined" && typeof window.devicePixelRatio === "number"
-            ? window.devicePixelRatio >= 2
-            : false
-
-        if (mapboxToken) {
-          // Path must include /512/ to match tileSize 512 + zoomOffset -1 (otherwise 256px tiles scale up and look soft)
-          const mapboxRetina = highDpi ? "@2x" : ""
-          L.tileLayer(
-            `https://api.mapbox.com/styles/v1/mapbox/streets-v12/tiles/512/{z}/{x}/{y}${mapboxRetina}?access_token=${mapboxToken}`,
-            {
-              attribution:
-                '&copy; <a href="https://www.mapbox.com/about/maps/">Mapbox</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-              tileSize: 512,
-              zoomOffset: -1,
-              maxZoom: 22,
-              maxNativeZoom: 22,
-            },
-          ).addTo(map)
-        } else {
-          L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
-            attribution:
-              '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-            subdomains: "abcd",
-            maxZoom: 20,
-            maxNativeZoom: 20,
-            detectRetina: true,
-          }).addTo(map)
-        }
-
-        const customIcon = L.divIcon({
-          className: "custom-marker",
-          html: `
-            <div style="
-              width: 24px;
-              height: 24px;
-              background: #dc2626;
-              border: 3px solid white;
-              border-radius: 50%;
-              box-shadow: 0 0 15px rgba(220, 38, 38, 0.6);
-              animation: pulse 2s ease-in-out infinite;
-              position: relative;
-            ">
-              <div style="
-                position: absolute;
-                top: 50%;
-                left: 50%;
-                transform: translate(-50%, -50%);
-                width: 8px;
-                height: 8px;
-                background: white;
-                border-radius: 50%;
-              "></div>
-            </div>
-          `,
-          iconSize: [24, 24],
-          iconAnchor: [12, 12],
-        })
-
-        L.marker(userLocation, { icon: customIcon })
-          .addTo(map)
-          .bindPopup(`
-            <div style="color: black; font-weight: 600; text-align: center; padding: 8px;">
-              <div style="color: #dc2626; font-size: 14px; margin-bottom: 4px;">📍 Your Location</div>
-              <div style="font-size: 12px; color: #666;">Technician will be dispatched here</div>
-            </div>
-          `)
-
-        const metroLayer = L.layerGroup().addTo(map)
-        const transitOverlay = L.layerGroup().addTo(map)
-
-        const refitMainBounds = () => {
-          if (!transitMapVisibleRef.current) {
-            flyToUserView(false)
-            return
-          }
-          const stops = transitStopPathRef.current
-          const valid = stops?.filter(
-            (p) =>
-              typeof p.lat === "number" &&
-              typeof p.lng === "number" &&
-              !Number.isNaN(p.lat) &&
-              !Number.isNaN(p.lng),
-          )
-          if (valid && valid.length > 0) {
-            const b = L.latLngBounds(valid.map((p) => [p.lat, p.lng]))
-            if (b.isValid()) {
-              map.fitBounds(b, { padding: [48, 48], maxZoom: 15, animate: true })
-              return
-            }
-          }
-          flyToUserView(false)
-        }
-
-        const refreshTransitOverlay = () => {
-          transitOverlay.clearLayers()
-          if (!transitMapVisibleRef.current) {
-            refitMainBounds()
-            return
-          }
-          const path = transitStopPathRef.current
-          if (!path?.length) {
-            refitMainBounds()
-            return
-          }
-          const valid = path.filter(
-            (p) =>
-              typeof p.lat === "number" &&
-              typeof p.lng === "number" &&
-              !Number.isNaN(p.lat) &&
-              !Number.isNaN(p.lng),
-          )
-          if (valid.length >= 2) {
-            L.polyline(
-              valid.map((p) => [p.lat, p.lng]),
-              { color: "#0d9488", weight: 4, opacity: 0.88 },
-            ).addTo(transitOverlay)
-          }
-          valid.forEach((p, i) => {
-            const marker = L.circleMarker([p.lat, p.lng], {
-              radius: 6,
-              color: "#fff",
-              weight: 2,
-              fillColor: "#0f766e",
-              fillOpacity: 0.95,
-            }).addTo(transitOverlay)
-            marker.bindPopup(
-              `<div style="font-size:12px;padding:4px 2px;color:#111;">
-                <strong>${i + 1}. ${escapePopupText(p.label)}</strong>
-                <div style="color:#666;font-size:11px;margin-top:4px;">${escapePopupText(p.placeCode)}</div>
-              </div>`,
-            )
+    const flyToUserView = (animated: boolean) => {
+      if (locationPickerActiveRef.current) {
+        const pin = pickerPinRef.current
+        if (pin && pin.length >= 2) {
+          const [pLat, pLng] = pin
+          map.flyTo({
+            center: [pLng, pLat],
+            zoom: Math.max(map.getZoom(), 14),
+            duration: animated ? FLY_TO_USER_DURATION_SEC * 1000 : 0,
           })
-          refitMainBounds()
+          return
         }
+      }
+      const [lat, lng] = mapCenterRef.current
+      if (typeof lat !== "number" || typeof lng !== "number" || Number.isNaN(lat) || Number.isNaN(lng)) return
+      map.flyTo({
+        center: [lng, lat],
+        zoom: USER_VIEW_ZOOM,
+        duration: animated ? FLY_TO_USER_DURATION_SEC * 1000 : 0,
+      })
+    }
 
-        const busIconHtml = (bearing: number) => {
-          const rot = Number.isFinite(bearing) ? bearing : 0
-          return `
-            <div style="
-              width: 28px;
-              height: 28px;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              filter: drop-shadow(0 1px 2px rgba(0,0,0,0.35));
-            ">
-              <svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"
-                style="transform: rotate(${rot}deg); transition: transform 0.3s ease;">
-                <circle cx="12" cy="12" r="11" fill="#0f766e" stroke="#fff" stroke-width="2"/>
-                <path fill="#fff" d="M5 9.5c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2v6c0 .6-.4 1-1 1h-1.5l1 2H17l-1-2H8l-1 2H5.5l1-2H5c-.6 0-1-.4-1-1v-6zm2.5 1c-.8 0-1.5.7-1.5 1.5S6.7 13.5 7.5 13.5 9 12.8 9 12 8.3 10.5 7.5 10.5zm9 0c-.8 0-1.5.7-1.5 1.5s.7 1.5 1.5 1.5 1.5-.7 1.5-1.5-.7-1.5-1.5-1.5-1.5z"/>
-              </svg>
-            </div>
-          `
+    const buildServiceLocationPopupHtml = (selectedLabel: string | null) => {
+      if (selectedLabel?.trim()) {
+        const label = escapePopupText(selectedLabel.trim())
+        return `
+          <div style="color:#111;font-weight:600;text-align:left;padding:10px 12px;max-width:min(280px,72vw);">
+            <div style="color:#2563eb;font-size:13px;margin-bottom:6px;font-weight:700;">Selected location</div>
+            <div style="font-size:12px;color:#333;line-height:1.45;">${label}</div>
+          </div>
+        `
+      }
+      return `
+        <div style="color:#111;font-weight:600;text-align:center;padding:10px 12px;">
+          <div style="color:#2563eb;font-size:13px;margin-bottom:4px;">Your location</div>
+          <div style="font-size:12px;color:#666;">Live GPS · technician meets you here</div>
+        </div>
+      `
+    }
+
+    const syncUserPins = () => {
+      if (!map.isStyleLoaded()) return
+      const pickerActive = locationPickerActiveRef.current
+      const [cLat, cLng] = mapCenterRef.current
+      const pin = pickerPinRef.current
+      const selectedLabel = selectedLocationLabelRef.current?.trim() ? selectedLocationLabelRef.current!.trim() : null
+
+      if (pickerActive) {
+        if (userMarkerRef.current) {
+          userMarkerRef.current.remove()
+          userMarkerRef.current = null
         }
-
-        const vehiclesUrl = () => {
-          const fromPanel = vehicleRouteIdsRef.current?.trim()
-          if (fromPanel) {
-            return `/api/metro-transit/vehicles?${new URLSearchParams({ routes: fromPanel }).toString()}`
-          }
-          const extra = process.env.NEXT_PUBLIC_METRO_TRANSIT_ROUTES?.trim()
-          if (extra) {
-            return `/api/metro-transit/vehicles?${new URLSearchParams({ routes: extra }).toString()}`
-          }
-          return "/api/metro-transit/vehicles"
-        }
-
-        const updateMetroVehicles = async () => {
-          if (!transitMapVisibleRef.current) {
-            metroLayer.clearLayers()
-            return
-          }
-          try {
-            const res = await fetch(vehiclesUrl())
-            if (!res.ok) return
-            const vehicles: MetroVehicle[] = await res.json()
-            metroLayer.clearLayers()
-            for (const v of vehicles) {
-              const lat = v.latitude
-              const lng = v.longitude
-              if (typeof lat !== "number" || typeof lng !== "number") continue
-              if (!isValidVehiclePosition(lat, lng)) continue
-              const bearing = typeof v.bearing === "number" ? v.bearing : 0
-              const icon = L.divIcon({
-                className: "metro-bus-marker",
-                html: busIconHtml(bearing),
-                iconSize: [28, 28],
-                iconAnchor: [14, 14],
-              })
-              const routeLabel = v.route_id ?? "?"
-              const dir = v.direction ?? ""
-              const speed = typeof v.speed === "number" && v.speed > 0 ? `${Math.round(v.speed)} mph` : "—"
-              L.marker([lat, lng], { icon })
-                .addTo(metroLayer)
-                .bindPopup(`
-                  <div style="color: #111; min-width: 140px; padding: 4px 2px;">
-                    <div style="font-weight: 700; color: #0f766e; font-size: 14px;">Route ${routeLabel}</div>
-                    <div style="font-size: 12px; color: #444; margin-top: 4px;">${dir ? `${dir} · ` : ""}${speed}</div>
-                    <div style="font-size: 11px; color: #666; margin-top: 6px;">Metro Transit (live)</div>
+        if (pin && pin.length >= 2) {
+          const [pLat, pLng] = pin
+          if (!pickerMarkerRef.current) {
+            pickerMarkerRef.current = new mapboxgl.Marker({ color: "#c084fc" })
+              .setLngLat([pLng, pLat])
+              .setPopup(
+                new mapboxgl.Popup({ offset: 18 }).setHTML(`
+                  <div style="color: black; font-weight: 600; text-align: center; padding: 8px;">
+                    <div style="color: #7c3aed; font-size: 14px; margin-bottom: 4px;">📍 Picked location</div>
+                    <div style="font-size: 12px; color: #666;">Confirm in the panel below</div>
                   </div>
-                `)
-            }
-          } catch {
-            /* ignore transient network errors */
+                `),
+              )
+              .addTo(map)
+          } else {
+            pickerMarkerRef.current.setLngLat([pLng, pLat])
           }
+        } else {
+          pickerMarkerRef.current?.remove()
+          pickerMarkerRef.current = null
         }
+        return
+      }
 
-        void updateMetroVehicles()
-        const metroInterval = setInterval(() => void updateMetroVehicles(), METRO_POLL_MS)
+      pickerMarkerRef.current?.remove()
+      pickerMarkerRef.current = null
 
-        mapInstanceRef.current = map
-        mapInstanceRef.current._refreshTransitOverlay = refreshTransitOverlay
-        mapInstanceRef.current._refitMainBounds = refitMainBounds
-        mapInstanceRef.current._updateMetroVehicles = updateMetroVehicles
-        refreshTransitOverlay()
+      const html = buildServiceLocationPopupHtml(selectedLabel)
 
-        const handleResize = () => {
-          if (mapInstanceRef.current) {
-            mapInstanceRef.current.invalidateSize()
-            mapInstanceRef.current._refitMainBounds?.()
-          }
-        }
-
-        window.addEventListener("resize", handleResize)
-        window.addEventListener("orientationchange", handleResize)
-
-        mapInstanceRef.current._cleanup = () => {
-          clearInterval(metroInterval)
-          metroLayer.clearLayers()
-          transitOverlay.clearLayers()
-          map.removeLayer(transitOverlay)
-          map.removeLayer(metroLayer)
-          window.removeEventListener("resize", handleResize)
-          window.removeEventListener("orientationchange", handleResize)
+      if (!userMarkerRef.current) {
+        const popup = new mapboxgl.Popup({ offset: 20, closeButton: true }).setHTML(html)
+        userMarkerRef.current = new mapboxgl.Marker({ color: "#2563eb" })
+          .setLngLat([cLng, cLat])
+          .setPopup(popup)
+          .addTo(map)
+        if (selectedLabel) {
+          userMarkerRef.current.togglePopup()
         }
       } else {
-        setTimeout(initMap, 100)
+        userMarkerRef.current.setLngLat([cLng, cLat])
+        const marker = userMarkerRef.current
+        const popup = marker.getPopup()
+        if (popup) {
+          const wasOpen = popup.isOpen()
+          popup.setHTML(html)
+          if (selectedLabel) {
+            if (!wasOpen) marker.togglePopup()
+          } else if (wasOpen) {
+            marker.togglePopup()
+          }
+        }
       }
     }
 
-    initMap()
+    const syncFindMeControl = () => {
+      if (!map.isStyleLoaded()) return
+      const want =
+        Boolean(showFindMeControlRef.current) && typeof navigator !== "undefined" && "geolocation" in navigator
+
+      if (!want) {
+        if (findMeControlInstance) {
+          map.removeControl(findMeControlInstance)
+          findMeControlInstance = null
+          geolocateForFindMe = null
+        }
+        ;(map as { _triggerFindMe?: () => void })._triggerFindMe = () => {}
+        return
+      }
+
+      /** Must stay synchronous after a user gesture so the browser can show the location prompt. */
+      const runSmartFindMe = () => {
+        void geolocateForFindMe?.trigger()
+      }
+
+      if (findMeControlInstance) {
+        ;(map as { _triggerFindMe?: () => void })._triggerFindMe = runSmartFindMe
+        return
+      }
+
+      const geolocate = new mapboxgl.GeolocateControl({
+        positionOptions: { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
+        trackUserLocation: true,
+        showUserLocation: true,
+        showUserHeading: true,
+        showAccuracyCircle: true,
+      })
+      geolocateForFindMe = geolocate
+
+      const findMeControl: mapboxgl.IControl = {
+        onAdd() {
+          const root = geolocate.onAdd(map) as HTMLElement
+          root.style.display = "flex"
+          root.style.alignItems = "center"
+          root.style.gap = "6px"
+          root.style.padding = "4px 6px"
+          root.style.background = "rgba(255,255,255,0.92)"
+          root.style.borderRadius = "8px"
+          root.style.boxShadow = "0 1px 3px rgba(0,0,0,0.12)"
+          const stripControlChrome = (el: HTMLElement) => {
+            el.style.background = "transparent"
+            el.style.boxShadow = "none"
+            el.querySelectorAll<HTMLElement>("button, .mapboxgl-ctrl-icon, .mapboxgl-ctrl-icon > *").forEach((node) => {
+              node.style.background = "transparent"
+              node.style.boxShadow = "none"
+            })
+          }
+          stripControlChrome(root)
+
+          geolocate.on("geolocate", (e: { coords: GeolocationCoordinates }) => {
+            onGeolocateSuccessRef.current?.([e.coords.latitude, e.coords.longitude])
+          })
+          geolocate.on("error", () => {
+            const c = map.getCenter()
+            onGeolocateFallbackRef.current?.([c.lat, c.lng])
+          })
+
+          const label = document.createElement("span")
+          label.textContent = "Find me"
+          label.style.fontSize = "12px"
+          label.style.fontWeight = "600"
+          label.style.color = "#1f2937"
+          label.style.letterSpacing = "0.01em"
+          label.style.whiteSpace = "nowrap"
+          label.style.userSelect = "none"
+          label.style.cursor = "pointer"
+          label.addEventListener("click", () => {
+            runSmartFindMe()
+          })
+          root.appendChild(label)
+
+          return root
+        },
+        onRemove() {
+          geolocate.onRemove()
+        },
+      }
+
+      findMeControlInstance = findMeControl
+      map.addControl(findMeControl, "top-left")
+      ;(map as { _triggerFindMe?: () => void })._triggerFindMe = runSmartFindMe
+    }
+
+    const ensureTransitSources = () => {
+      if (!map.getSource(TRANSIT_LINE_SOURCE)) {
+        map.addSource(TRANSIT_LINE_SOURCE, {
+          type: "geojson",
+          data: { type: "FeatureCollection", features: [] },
+        })
+      }
+      if (!map.getSource(TRANSIT_STOPS_SOURCE)) {
+        map.addSource(TRANSIT_STOPS_SOURCE, {
+          type: "geojson",
+          data: { type: "FeatureCollection", features: [] },
+        })
+      }
+      if (!map.getLayer(TRANSIT_LINE_LAYER)) {
+        map.addLayer({
+          id: TRANSIT_LINE_LAYER,
+          type: "line",
+          source: TRANSIT_LINE_SOURCE,
+          paint: { "line-color": "#0d9488", "line-width": 4, "line-opacity": 0.9 },
+        })
+      }
+      if (!map.getLayer(TRANSIT_STOPS_LAYER)) {
+        map.addLayer({
+          id: TRANSIT_STOPS_LAYER,
+          type: "circle",
+          source: TRANSIT_STOPS_SOURCE,
+          paint: {
+            "circle-radius": 6,
+            "circle-color": "#0f766e",
+            "circle-stroke-width": 2,
+            "circle-stroke-color": "#ffffff",
+          },
+        })
+      }
+    }
+
+    const clearVehicleMarkers = () => {
+      for (const marker of vehicleMarkers.values()) marker.remove()
+      vehicleMarkers.clear()
+    }
+
+    const refitMainBounds = () => {
+      if (!transitMapVisibleRef.current) {
+        flyToUserView(false)
+        return
+      }
+      const stops = transitStopPathRef.current
+      const valid = stops?.filter(
+        (p) =>
+          typeof p.lat === "number" &&
+          typeof p.lng === "number" &&
+          !Number.isNaN(p.lat) &&
+          !Number.isNaN(p.lng),
+      )
+      if (valid && valid.length > 0) {
+        const bounds = new mapboxgl.LngLatBounds()
+        for (const p of valid) bounds.extend([p.lng, p.lat])
+        if (!bounds.isEmpty()) {
+          map.fitBounds(bounds, { padding: 48, maxZoom: 15, duration: 700 })
+          return
+        }
+      }
+      flyToUserView(false)
+    }
+
+    const refreshTransitOverlay = () => {
+      if (!map.isStyleLoaded()) return
+      ensureTransitSources()
+
+      const lineSource = map.getSource(TRANSIT_LINE_SOURCE) as mapboxgl.GeoJSONSource
+      const stopsSource = map.getSource(TRANSIT_STOPS_SOURCE) as mapboxgl.GeoJSONSource
+      if (!lineSource || !stopsSource) return
+
+      if (!transitMapVisibleRef.current) {
+        lineSource.setData({ type: "FeatureCollection", features: [] })
+        stopsSource.setData({ type: "FeatureCollection", features: [] })
+        refitMainBounds()
+        return
+      }
+
+      const path = transitStopPathRef.current ?? []
+      const valid = path.filter(
+        (p) =>
+          typeof p.lat === "number" &&
+          typeof p.lng === "number" &&
+          !Number.isNaN(p.lat) &&
+          !Number.isNaN(p.lng),
+      )
+
+      const lineFeature =
+        valid.length >= 2
+          ? [{
+              type: "Feature",
+              geometry: { type: "LineString", coordinates: valid.map((p) => [p.lng, p.lat]) },
+              properties: {},
+            }]
+          : []
+
+      const stopFeatures = valid.map((p, i) => ({
+        type: "Feature",
+        geometry: { type: "Point", coordinates: [p.lng, p.lat] },
+        properties: { label: `${i + 1}. ${p.label}`, placeCode: p.placeCode },
+      }))
+
+      lineSource.setData({ type: "FeatureCollection", features: lineFeature as any })
+      stopsSource.setData({ type: "FeatureCollection", features: stopFeatures as any })
+      refitMainBounds()
+    }
+
+    const vehiclesUrl = () => {
+      const fromPanel = vehicleRouteIdsRef.current?.trim()
+      if (fromPanel) return `/api/metro-transit/vehicles?${new URLSearchParams({ routes: fromPanel }).toString()}`
+      const extra = process.env.NEXT_PUBLIC_METRO_TRANSIT_ROUTES?.trim()
+      if (extra) return `/api/metro-transit/vehicles?${new URLSearchParams({ routes: extra }).toString()}`
+      return "/api/metro-transit/vehicles"
+    }
+
+    const updateMetroVehicles = async () => {
+      if (locationPickerActiveRef.current) {
+        clearVehicleMarkers()
+        return
+      }
+      if (!transitMapVisibleRef.current) {
+        clearVehicleMarkers()
+        return
+      }
+      try {
+        const res = await fetch(vehiclesUrl())
+        if (!res.ok) return
+        const vehicles: MetroVehicle[] = await res.json()
+        clearVehicleMarkers()
+        for (const v of vehicles) {
+          const lat = v.latitude
+          const lng = v.longitude
+          if (typeof lat !== "number" || typeof lng !== "number") continue
+          if (!isValidVehiclePosition(lat, lng)) continue
+          const bearing = typeof v.bearing === "number" ? v.bearing : 0
+
+          const el = document.createElement("div")
+          el.style.width = "28px"
+          el.style.height = "28px"
+          el.style.borderRadius = "50%"
+          el.style.background = "#0f766e"
+          el.style.border = "2px solid #fff"
+          el.style.boxShadow = "0 1px 2px rgba(0,0,0,0.35)"
+          el.style.transform = `rotate(${bearing}deg)`
+
+          const key = `${v.id ?? v.trip_id ?? "v"}-${lat.toFixed(5)}-${lng.toFixed(5)}`
+          const marker = new mapboxgl.Marker({ element: el, anchor: "center" })
+            .setLngLat([lng, lat])
+            .setPopup(
+              new mapboxgl.Popup({ offset: 18 }).setHTML(`
+                <div style="color: #111; min-width: 140px; padding: 4px 2px;">
+                  <div style="font-weight: 700; color: #0f766e; font-size: 14px;">Route ${v.route_id ?? "?"}</div>
+                  <div style="font-size: 12px; color: #444; margin-top: 4px;">${v.direction ?? ""}${v.direction ? " · " : ""}${typeof v.speed === "number" && v.speed > 0 ? `${Math.round(v.speed)} mph` : "—"}</div>
+                  <div style="font-size: 11px; color: #666; margin-top: 6px;">Metro Transit (live)</div>
+                </div>
+              `),
+            )
+            .addTo(map)
+          vehicleMarkers.set(key, marker)
+        }
+      } catch {
+        /* ignore transient network errors */
+      }
+    }
+
+    const clearPendingConfirm = () => {
+      const m = pendingConfirmMarkerRef.current
+      pendingConfirmMarkerRef.current = null
+      m?.remove()
+    }
+
+    /** Any map tap (picker or main): amber pin + popup; parent state updates only after Confirm. */
+    const openPendingConfirmPopup = (lat: number, lng: number) => {
+      clearPendingConfirm()
+
+      const root = document.createElement("div")
+      root.style.cssText =
+        "padding:12px 14px;min-width:220px;max-width:min(280px,85vw);color:#111;font-family:system-ui,sans-serif;"
+      const title = document.createElement("div")
+      title.textContent = "New meeting spot"
+      title.style.cssText = "font-weight:700;font-size:14px;color:#c2410c;margin-bottom:6px;"
+      const coords = document.createElement("div")
+      coords.textContent = `${lat.toFixed(5)}, ${lng.toFixed(5)}`
+      coords.style.cssText = "font-family:ui-monospace,monospace;font-size:11px;color:#666;margin-bottom:12px;"
+
+      const row = document.createElement("div")
+      row.style.cssText = "display:flex;gap:8px;flex-wrap:wrap;align-items:center;"
+
+      const btnConfirm = document.createElement("button")
+      btnConfirm.type = "button"
+      btnConfirm.textContent = "Confirm new location"
+      btnConfirm.style.cssText =
+        "flex:1;min-width:120px;padding:8px 12px;border-radius:8px;border:none;background:#2563eb;color:#fff;font-weight:600;font-size:12px;cursor:pointer;"
+
+      const btnCancel = document.createElement("button")
+      btnCancel.type = "button"
+      btnCancel.textContent = "Cancel"
+      btnCancel.style.cssText =
+        "padding:8px 12px;border-radius:8px;border:1px solid #d4d4d4;background:#fff;color:#444;font-weight:600;font-size:12px;cursor:pointer;"
+
+      const commit = () => {
+        clearPendingConfirm()
+        if (locationPickerActiveRef.current) {
+          onLocationPickRef.current?.(lat, lng)
+        } else {
+          onPrimaryLocationFromMapRef.current?.(lat, lng)
+        }
+      }
+
+      btnConfirm.addEventListener("click", (e) => {
+        e.stopPropagation()
+        commit()
+      })
+      btnCancel.addEventListener("click", (e) => {
+        e.stopPropagation()
+        clearPendingConfirm()
+      })
+
+      row.appendChild(btnConfirm)
+      row.appendChild(btnCancel)
+      root.appendChild(title)
+      root.appendChild(coords)
+      root.appendChild(row)
+
+      const popup = new mapboxgl.Popup({ offset: 20, closeButton: true }).setDOMContent(root)
+
+      const marker = new mapboxgl.Marker({ color: "#f59e0b" })
+        .setLngLat([lng, lat])
+        .setPopup(popup)
+        .addTo(map)
+
+      pendingConfirmMarkerRef.current = marker
+      marker.togglePopup()
+
+      popup.on("close", () => {
+        if (pendingConfirmMarkerRef.current !== marker) return
+        pendingConfirmMarkerRef.current = null
+        marker.remove()
+      })
+    }
+
+    const onMapPickClick = (e: mapboxgl.MapMouseEvent) => {
+      if (map.getLayer(TRANSIT_STOPS_LAYER)) {
+        try {
+          const stops = map.queryRenderedFeatures(e.point, { layers: [TRANSIT_STOPS_LAYER] })
+          if (stops.length > 0) return
+        } catch {
+          /* ignore */
+        }
+      }
+      const { lat, lng } = e.lngLat
+      openPendingConfirmPopup(lat, lng)
+    }
+
+    let stopClickBound = false
+    let mapPickClickBound = false
+    const onStopClick = (e: mapboxgl.MapLayerMouseEvent) => {
+      const props = e.features?.[0]?.properties as { label?: string; placeCode?: string } | undefined
+      if (!props) return
+      new mapboxgl.Popup({ closeButton: true })
+        .setLngLat(e.lngLat)
+        .setHTML(
+          `<div style="font-size:12px;padding:4px 2px;color:#111;"><strong>${escapePopupText(props.label ?? "")}</strong><div style="color:#666;font-size:11px;margin-top:4px;">${escapePopupText(props.placeCode ?? "")}</div></div>`,
+        )
+        .addTo(map)
+    }
+
+    map.on("load", () => {
+      ensureTransitSources()
+      syncUserPins()
+      syncFindMeControl()
+      ;(map as any)._syncUserPins = syncUserPins
+      ;(map as any)._syncFindMeControl = syncFindMeControl
+      setTimeout(() => flyToUserView(true), 40)
+      refreshTransitOverlay()
+      void updateMetroVehicles()
+      map.on("click", TRANSIT_STOPS_LAYER, onStopClick)
+      map.on("mouseenter", TRANSIT_STOPS_LAYER, () => (map.getCanvas().style.cursor = "pointer"))
+      map.on("mouseleave", TRANSIT_STOPS_LAYER, () => (map.getCanvas().style.cursor = ""))
+      stopClickBound = true
+      map.on("click", onMapPickClick)
+      mapPickClickBound = true
+    })
+
+    const metroInterval = setInterval(() => void updateMetroVehicles(), METRO_POLL_MS)
+    mapInstanceRef.current = map
+    ;(mapInstanceRef.current as any)._refreshTransitOverlay = refreshTransitOverlay
+    ;(mapInstanceRef.current as any)._refitMainBounds = refitMainBounds
+    ;(mapInstanceRef.current as any)._updateMetroVehicles = updateMetroVehicles
+    ;(mapInstanceRef.current as any)._syncUserPins = syncUserPins
+    ;(mapInstanceRef.current as any)._syncFindMeControl = syncFindMeControl
+    ;(mapInstanceRef.current as any)._cleanup = () => {
+      pendingConfirmMarkerRef.current?.remove()
+      pendingConfirmMarkerRef.current = null
+      clearInterval(metroInterval)
+      clearVehicleMarkers()
+      if (findMeControlInstance) {
+        try {
+          map.removeControl(findMeControlInstance)
+        } catch {
+          /* ignore */
+        }
+        findMeControlInstance = null
+        geolocateForFindMe = null
+      }
+      if (stopClickBound) {
+        map.off("click", TRANSIT_STOPS_LAYER, onStopClick)
+      }
+      if (mapPickClickBound) {
+        map.off("click", onMapPickClick)
+      }
+    }
 
     return () => {
+      pendingConfirmMarkerRef.current?.remove()
+      pendingConfirmMarkerRef.current = null
+      userMarkerRef.current?.remove()
+      userMarkerRef.current = null
+      pickerMarkerRef.current?.remove()
+      pickerMarkerRef.current = null
       if (mapInstanceRef.current) {
-        if (mapInstanceRef.current._cleanup) {
-          mapInstanceRef.current._cleanup()
+        if ((mapInstanceRef.current as any)._cleanup) {
+          ;(mapInstanceRef.current as any)._cleanup()
         }
         mapInstanceRef.current.remove()
         mapInstanceRef.current = null
       }
     }
-  }, [userLocation])
+  }, [])
 
   return (
     <div className="relative h-full w-full">

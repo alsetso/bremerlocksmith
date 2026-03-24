@@ -16,6 +16,8 @@ interface TransitRoutesPanelProps {
   transitStopPath: TransitStopMapPoint[] | null
   onVehicleRouteFocus: (routeId: string | null) => void
   onTransitStopsPlotted: (points: TransitStopMapPoint[] | null) => void
+  /** Overlay on map (default) or full-width block below the map */
+  layout?: "overlay" | "inline"
 }
 
 type Phase = "browse" | "directions" | "stops"
@@ -66,6 +68,7 @@ export function TransitRoutesPanel({
   transitStopPath,
   onVehicleRouteFocus,
   onTransitStopsPlotted,
+  layout = "overlay",
 }: TransitRoutesPanelProps) {
   const [agencies, setAgencies] = useState<NexTripAgency[]>([])
   const [routes, setRoutes] = useState<NexTripRoute[]>([])
@@ -228,21 +231,16 @@ export function TransitRoutesPanel({
   const stepIndex = phase === "browse" ? 0 : phase === "directions" ? 1 : 2
 
   if (!expanded) {
-    return (
-      <div className="pointer-events-auto absolute right-3 top-3 z-[500] sm:right-4 sm:top-4">
-        <button
-          type="button"
-          onClick={() => onExpandedChange(true)}
-          className="rounded-xl border border-zinc-200/90 bg-white/95 px-3 py-2 text-xs font-semibold text-teal-800 shadow-lg backdrop-blur-sm transition-colors hover:border-teal-400/60 hover:bg-teal-50/90 sm:px-3.5 sm:py-2.5"
-        >
-          Show transit
-        </button>
-      </div>
-    )
+    return null
   }
 
+  const rootClass =
+    layout === "inline"
+      ? "pointer-events-auto relative z-0 flex min-h-0 w-full max-w-none flex-1 flex-col overflow-hidden rounded-xl border border-zinc-200/90 bg-white/95 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)] backdrop-blur-sm"
+      : "pointer-events-auto absolute right-3 top-3 z-[500] flex max-h-[min(70vh,28rem)] w-[min(100%,20rem)] flex-col overflow-hidden rounded-xl border border-zinc-200/90 bg-white/95 shadow-lg backdrop-blur-sm sm:right-4 sm:top-4 sm:max-h-[min(75vh,32rem)] sm:w-[22rem]"
+
   return (
-    <div className="pointer-events-auto absolute right-3 top-3 z-[500] flex max-h-[min(70vh,28rem)] w-[min(100%,20rem)] flex-col overflow-hidden rounded-xl border border-zinc-200/90 bg-white/95 shadow-lg backdrop-blur-sm sm:right-4 sm:top-4 sm:max-h-[min(75vh,32rem)] sm:w-[22rem]">
+    <div className={rootClass}>
       <div className="border-b border-zinc-200/80 px-3 py-2.5 sm:px-3.5">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
