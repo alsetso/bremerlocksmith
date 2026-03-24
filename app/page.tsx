@@ -6,6 +6,8 @@ import { FloatingMenu } from "@/components/floating-menu"
 import { MapComponent } from "@/components/map-component"
 import { LocationPermissionModal } from "@/components/location-permission-modal"
 import { HomeDashboard } from "@/components/home-dashboard"
+import { PaymentsModal } from "@/components/payments-modal"
+import { MapBottomSheet } from "@/components/map-bottom-sheet"
 import { MapToaster } from "@/components/map-toaster"
 import { toast } from "sonner"
 import { reverseGeocodeMeetingLine } from "@/lib/reverse-geocode"
@@ -20,6 +22,7 @@ const DEFAULT_MAP_CENTER: [number, number] = [44.9778, -93.265]
 export default function HomePage() {
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null)
   const [serviceModalOpen, setServiceModalOpen] = useState(false)
+  const [paymentsOpen, setPaymentsOpen] = useState(false)
   const [locationError, setLocationError] = useState<string | null>(null)
   const [showPermissionModal, setShowPermissionModal] = useState<boolean>(false)
   const [isRequestingLocation, setIsRequestingLocation] = useState<boolean>(false)
@@ -35,6 +38,8 @@ export default function HomePage() {
   const [liveLocationMode, setLiveLocationMode] = useState(true)
   /** Bumps when user enables live location so the map geolocate control runs. */
   const [findMeTriggerNonce, setFindMeTriggerNonce] = useState(0)
+  /** Bottom sheet over the map: always leaves a peek bar; expands/collapses (never fully dismissed). */
+  const [bottomSheetExpanded, setBottomSheetExpanded] = useState(true)
 
   /** Avoid applying an older reverse-geocode result if the user picks again quickly. */
   const mapLabelSeqRef = useRef(0)
@@ -85,6 +90,18 @@ export default function HomePage() {
   useEffect(() => {
     if (showPermissionModal) setPickerPin(null)
   }, [showPermissionModal])
+
+  useEffect(() => {
+    if (showPermissionModal) setBottomSheetExpanded(true)
+  }, [showPermissionModal])
+
+  useEffect(() => {
+    if (serviceModalOpen) setBottomSheetExpanded(true)
+  }, [serviceModalOpen])
+
+  useEffect(() => {
+    if (paymentsOpen) setBottomSheetExpanded(true)
+  }, [paymentsOpen])
 
   useEffect(() => {
     if (userLocation) setPickerPin(null)
@@ -260,8 +277,8 @@ export default function HomePage() {
             {showMainMap ? (
               <>
                 <div className="box-border flex min-h-0 flex-1 flex-col px-3 pb-0 sm:px-4">
-                  <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl">
-                    <div className="map-stack relative min-h-0 w-full flex-1 overflow-hidden">
+                  <div className="relative min-h-0 flex-1 overflow-hidden rounded-2xl">
+                    <div className="map-stack absolute inset-0 min-h-0 overflow-hidden">
                       <MapToaster />
                       <MapComponent
                         mapCenter={mapCenter}
@@ -283,7 +300,20 @@ export default function HomePage() {
                         onGeolocateFallback={handleGeolocateFallback}
                       />
                     </div>
-                    <div className="flex min-h-0 w-full flex-1 flex-col gap-1.5 overflow-hidden bg-[#0c0a08] px-2 pb-2 pt-1 sm:px-3 sm:pb-2 sm:pt-1.5">
+                    <MapBottomSheet
+                      lockExpanded={showPermissionModal}
+                      expanded={bottomSheetExpanded}
+                      onExpandedChange={setBottomSheetExpanded}
+                      title={
+                        showPermissionModal
+                          ? "Location"
+                          : paymentsOpen
+                            ? "Payments"
+                            : serviceModalOpen
+                              ? "Service request"
+                              : "Dashboard"
+                      }
+                    >
                       {showPermissionModal && (
                         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                           <LocationPermissionModal
@@ -304,17 +334,41 @@ export default function HomePage() {
                           />
                         </div>
                       )}
-                      {!showPermissionModal && userLocation && !locationPickerActive && !serviceModalOpen && (
+                      {!showPermissionModal && userLocation && !locationPickerActive && paymentsOpen && (
+                        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                          <PaymentsModal
+                            variant="inline"
+                            isOpen={paymentsOpen}
+                            onClose={() => setPaymentsOpen(false)}
+                          />
+                        </div>
+                      )}
+                      {!showPermissionModal &&
+                        userLocation &&
+                        !locationPickerActive &&
+                        !paymentsOpen &&
+                        !serviceModalOpen && (
                         <div className="flex w-full shrink-0 flex-col overflow-y-auto">
                           <HomeDashboard
-                            onRequestImmediateSupport={() => setServiceModalOpen(true)}
+                            onRequestImmediateSupport={() => {
+                              setPaymentsOpen(false)
+                              setServiceModalOpen(true)
+                            }}
+                            onOpenPayments={() => {
+                              setServiceModalOpen(false)
+                              setPaymentsOpen(true)
+                            }}
                             onOpenLocationSettings={openLocationFromDashboard}
                             phoneDisplay={DISPATCH_PHONE_DISPLAY}
                             phoneE164={DISPATCH_PHONE_E164}
                           />
                         </div>
                       )}
-                      {!showPermissionModal && userLocation && !locationPickerActive && serviceModalOpen && (
+                      {!showPermissionModal &&
+                        userLocation &&
+                        !locationPickerActive &&
+                        !paymentsOpen &&
+                        serviceModalOpen && (
                         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                           <FloatingMenu
                             userLocation={userLocation}
@@ -327,7 +381,7 @@ export default function HomePage() {
                           />
                         </div>
                       )}
-                    </div>
+                    </MapBottomSheet>
                   </div>
                 </div>
               </>

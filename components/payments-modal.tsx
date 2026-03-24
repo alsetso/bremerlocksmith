@@ -21,6 +21,8 @@ type Step = "email" | "pay" | "success"
 interface PaymentsModalProps {
   isOpen: boolean
   onClose: () => void
+  /** Inline panel inside the map bottom sheet (same pattern as immediate support). */
+  variant?: "overlay" | "inline"
 }
 
 function InnerPayForm({
@@ -87,7 +89,7 @@ function InnerPayForm({
   )
 }
 
-export function PaymentsModal({ isOpen, onClose }: PaymentsModalProps) {
+export function PaymentsModal({ isOpen, onClose, variant = "overlay" }: PaymentsModalProps) {
   const [step, setStep] = useState<Step>("email")
   const [email, setEmail] = useState("")
   const [prices, setPrices] = useState<PricePayload[]>([])
@@ -178,39 +180,29 @@ export function PaymentsModal({ isOpen, onClose }: PaymentsModalProps) {
 
   const missingPk = !stripePromise
   const ready = !loadingCatalog && prices.length > 0 && selectedPriceId
+  const titleId = variant === "inline" ? "payments-inline-title" : "payments-modal-title"
 
-  return (
-    <div
-      className="fixed inset-0 z-[80] flex items-end justify-center sm:items-center"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="payments-modal-title"
-    >
+  const header = (
+    <div className="flex shrink-0 items-center justify-between border-b border-zinc-700/60 px-3 py-2.5 sm:px-4 sm:py-3">
+      <div className="flex items-center gap-2">
+        <CreditCard className="h-5 w-5 text-emerald-400/90" strokeWidth={1.75} aria-hidden />
+        <h2 id={titleId} className="font-serif text-base font-semibold text-zinc-100">
+          Payments
+        </h2>
+      </div>
       <button
         type="button"
-        className="absolute inset-0 bg-black/70 backdrop-blur-[2px]"
         onClick={onClose}
-        aria-label="Close payments"
-      />
-      <div className="relative z-[81] flex max-h-[90dvh] w-full max-w-md flex-col overflow-hidden rounded-t-2xl border border-zinc-600/80 bg-zinc-900 shadow-xl sm:rounded-2xl">
-        <div className="flex items-center justify-between border-b border-zinc-700/60 px-4 py-3">
-          <div className="flex items-center gap-2">
-            <CreditCard className="h-5 w-5 text-emerald-400/90" strokeWidth={1.75} aria-hidden />
-            <h2 id="payments-modal-title" className="font-serif text-base font-semibold text-zinc-100">
-              Payments
-            </h2>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg p-2 text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-100"
-            aria-label="Close"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
+        className="rounded-lg p-2 text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-100"
+        aria-label={variant === "inline" ? "Back to dashboard" : "Close"}
+      >
+        <X className="h-5 w-5" />
+      </button>
+    </div>
+  )
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+  const scrollBody = (
+    <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3 sm:px-4 sm:py-4">
           {missingPk && (
             <p className="text-sm text-amber-200/90">
               Stripe is not configured. Add NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY to your environment.
@@ -360,7 +352,38 @@ export function PaymentsModal({ isOpen, onClose }: PaymentsModalProps) {
               </Button>
             </div>
           )}
-        </div>
+    </div>
+  )
+
+  if (variant === "inline") {
+    return (
+      <div
+        className="flex min-h-0 flex-1 flex-col overflow-hidden"
+        role="region"
+        aria-labelledby={titleId}
+      >
+        {header}
+        {scrollBody}
+      </div>
+    )
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-[80] flex items-end justify-center sm:items-center"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={titleId}
+    >
+      <button
+        type="button"
+        className="absolute inset-0 bg-black/70 backdrop-blur-[2px]"
+        onClick={onClose}
+        aria-label="Close payments"
+      />
+      <div className="relative z-[81] flex max-h-[90dvh] w-full max-w-md flex-col overflow-hidden rounded-t-2xl border border-zinc-600/80 bg-zinc-900 shadow-xl sm:rounded-2xl">
+        {header}
+        {scrollBody}
       </div>
     </div>
   )

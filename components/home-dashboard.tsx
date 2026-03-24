@@ -1,8 +1,6 @@
 "use client"
 
-import { useState } from "react"
 import { CreditCard, Headphones, MapPin, MessageSquare, Phone } from "lucide-react"
-import { PaymentsModal } from "@/components/payments-modal"
 
 /** Single row: icon + title only (no subtitle). Compact height; grid row height is intrinsic — not stretched by parent flex. */
 const cardShell =
@@ -13,6 +11,7 @@ const cardTitle =
 
 interface HomeDashboardProps {
   onRequestImmediateSupport: () => void
+  onOpenPayments: () => void
   onOpenLocationSettings: () => void
   phoneE164: string
   phoneDisplay: string
@@ -20,12 +19,11 @@ interface HomeDashboardProps {
 
 export function HomeDashboard({
   onRequestImmediateSupport,
+  onOpenPayments,
   onOpenLocationSettings,
   phoneE164,
   phoneDisplay,
 }: HomeDashboardProps) {
-  const [paymentsOpen, setPaymentsOpen] = useState(false)
-
   return (
     <div className="flex w-full min-w-0 shrink-0 flex-col gap-1.5">
       <div className="shrink-0 space-y-0.5">
@@ -60,14 +58,13 @@ export function HomeDashboard({
           </span>
           <span className={cardTitle}>Text us</span>
         </a>
-        <button type="button" onClick={() => setPaymentsOpen(true)} className={cardShell}>
+        <button type="button" onClick={onOpenPayments} className={cardShell}>
           <span className={cardIcon}>
             <CreditCard className="h-4 w-4 text-emerald-400/85 sm:h-[18px] sm:w-[18px]" strokeWidth={1.75} aria-hidden />
           </span>
           <span className={cardTitle}>Payments</span>
         </button>
       </div>
-      <PaymentsModal isOpen={paymentsOpen} onClose={() => setPaymentsOpen(false)} />
       <p className="shrink-0 border-t border-zinc-700/60 pt-2 text-[10px] leading-relaxed text-zinc-500 sm:pt-2.5 sm:text-[11px]">
         Minnesota born and raised—a family-owned contracting and locksmith company. We&apos;re building reliable,
         immediate routing for the urgent needs of our neighbors, because when you need help, minutes matter.
