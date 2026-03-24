@@ -11,9 +11,9 @@ import {
 import { Navigation } from "@/components/navigation"
 
 export const metadata: Metadata = {
-  title: "Partners — MNISR Immediate Service Response",
+  title: "Partners — Bremer Locksmith",
   description:
-    "MNISR partners with service-business owners across locksmith, towing, recovery, transport, and more—digital workspace and live vehicle location in one place.",
+    "Bremer Locksmith partners with service-business owners across locksmith, towing, recovery, transport, and more—digital workspace and live vehicle location in one place.",
 }
 
 const pillars = [
@@ -67,7 +67,7 @@ export default function PartnersPage() {
                 Equip your operation with our digital workspace
               </h1>
               <p className="mt-5 text-base leading-relaxed text-[#5d4037]/95">
-                MNISR works with owners across service categories—not just one trade. We are building tools
+                Bremer Locksmith works with owners across service categories—not just one trade. We are building tools
                 that connect your brand, your dispatch picture, and live vehicle location so customers get
                 clear answers and your crews stay coordinated.
               </p>
@@ -189,7 +189,7 @@ export default function PartnersPage() {
                   </p>
                   <p className="mt-2 max-w-sm text-sm leading-relaxed text-[#5d4037]/95">
                     We are finalizing onboarding and verification. Check back soon—or reach out through your
-                    usual MNISR channels when available.
+                    usual Bremer Locksmith channels when available.
                   </p>
                 </div>
               </div>
@@ -207,9 +207,7 @@ export default function PartnersPage() {
         </div>
       </main>
       <footer className="border-t border-[#c9b8a3] bg-[#e8dfd2] py-4 text-center text-[11px] text-[#5d4037]/85">
-        <span className="font-medium text-[#4a342c]">MNISR</span>
-        <span className="text-[#8d7b68]"> · </span>
-        Immediate Service Response
+        <span className="font-medium text-[#4a342c]">BREMER</span>
       </footer>
     </div>
   )

@@ -11,9 +11,9 @@ import {
 import { Navigation } from "@/components/navigation"
 
 export const metadata: Metadata = {
-  title: "Drivers — MNISR Immediate Service Response",
+  title: "Drivers — Bremer Locksmith",
   description:
-    "Join MNISR as a field driver: choose your agency, enroll your vehicle, meet service requirements, and set availability—application opening soon.",
+    "Join Bremer Locksmith as a field driver: choose your agency, enroll your vehicle, meet service requirements, and set availability—application opening soon.",
 }
 
 const driverSections = [
@@ -32,7 +32,7 @@ const driverSections = [
   {
     title: "Requirements for service",
     description:
-      "Expect to show valid licensing and insurance for your trade and region, roadworthy equipment, and any trade-specific certs your agency requires. MNISR and partner agencies verify before you take live dispatches.",
+      "Expect to show valid licensing and insurance for your trade and region, roadworthy equipment, and any trade-specific certs your agency requires. Bremer Locksmith and partner agencies verify before you take live dispatches.",
     icon: ClipboardCheck,
   },
   {
@@ -66,7 +66,7 @@ export default function DriversPage() {
                 Agency, vehicle, requirements & availability
               </h1>
               <p className="mt-5 text-base leading-relaxed text-[#5d4037]/95">
-                MNISR connects customers with responders through partner agencies. Here is how we set you up
+                Bremer Locksmith connects customers with responders through partner agencies. Here is how we set you up
                 in the field—with a clear agency relationship, a registered vehicle, documented
                 requirements, and availability that matches what you can deliver.
               </p>
@@ -129,7 +129,7 @@ export default function DriversPage() {
                   </p>
                   <h2 className="mt-1 font-serif text-xl font-semibold text-[#3e2723]">Join as a responder</h2>
                   <p className="mt-2 text-sm text-[#5d4037]/90">
-                    Link your agency, vehicle, and availability for MNISR dispatches.
+                    Link your agency, vehicle, and availability for Bremer Locksmith dispatches.
                   </p>
                 </div>
 
@@ -188,7 +188,7 @@ export default function DriversPage() {
                   </p>
                   <p className="mt-2 max-w-sm text-sm leading-relaxed text-[#5d4037]/95">
                     We are finishing verification flows with agencies. Check back soon—or ask your partner
-                    shop for updates on MNISR driver onboarding.
+                    shop for updates on Bremer Locksmith driver onboarding.
                   </p>
                 </div>
               </div>
@@ -206,9 +206,7 @@ export default function DriversPage() {
         </div>
       </main>
       <footer className="border-t border-[#c9b8a3] bg-[#e8dfd2] py-4 text-center text-[11px] text-[#5d4037]/85">
-        <span className="font-medium text-[#4a342c]">MNISR</span>
-        <span className="text-[#8d7b68]"> · </span>
-        Immediate Service Response
+        <span className="font-medium text-[#4a342c]">BREMER</span>
       </footer>
     </div>
   )

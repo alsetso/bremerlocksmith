@@ -361,20 +361,6 @@ export function MapComponent({
   return (
     <div className="relative h-full w-full">
       <div ref={mapRef} className="h-full w-full animate-fade-in overflow-hidden bg-background" />
-      {transitMapVisible && (
-        <div className="pointer-events-none absolute bottom-3 left-3 z-[500] max-w-[min(100%,18rem)] rounded-lg border border-zinc-200/90 bg-white/95 px-3 py-2 text-[11px] leading-snug text-zinc-700 shadow-sm sm:bottom-4 sm:left-4 sm:text-xs">
-          <span className="font-semibold text-zinc-900">Metro Transit</span>
-          <span className="text-zinc-500"> — live bus positions (selected routes), updated every ~10s. Data: </span>
-          <a
-            className="pointer-events-auto font-medium text-teal-700 underline decoration-teal-700/40 underline-offset-2 hover:text-teal-800"
-            href="https://svc.metrotransit.org/"
-            target="_blank"
-            rel="noreferrer noopener"
-          >
-            svc.metrotransit.org
-          </a>
-        </div>
-      )}
     </div>
   )
 }

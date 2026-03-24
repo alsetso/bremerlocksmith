@@ -15,9 +15,9 @@ import {
 import { Navigation } from "@/components/navigation"
 
 export const metadata: Metadata = {
-  title: "Services — MNISR Immediate Service Response",
+  title: "Services — Bremer Locksmith",
   description:
-    "Locksmith, keys, towing, ditch recovery, transportation, and more—custom keys, cuts, fobs, installs. MNISR dispatches the right responder for your situation.",
+    "Locksmith, keys, towing, ditch recovery, transportation, and more—custom keys, cuts, fobs, installs. Bremer Locksmith dispatches the right responder for your situation.",
 }
 
 const services = [
@@ -105,7 +105,7 @@ export default function ServicesPage() {
             One network. The right response.
           </h1>
           <p className="mx-auto mt-5 max-w-2xl text-center text-base leading-relaxed text-[#5d4037]/95">
-            MNISR connects you with vetted professionals across service types. Tell us what you need—we
+            Bremer Locksmith connects you with vetted professionals across service types. Tell us what you need—we
             handle coordination so you can focus on getting help.
           </p>
 
@@ -191,9 +191,7 @@ export default function ServicesPage() {
         </div>
       </main>
       <footer className="border-t border-[#c9b8a3] bg-[#e8dfd2] py-4 text-center text-[11px] text-[#5d4037]/85">
-        <span className="font-medium text-[#4a342c]">MNISR</span>
-        <span className="text-[#8d7b68]"> · </span>
-        Immediate Service Response
+        <span className="font-medium text-[#4a342c]">BREMER</span>
       </footer>
     </div>
   )

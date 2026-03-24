@@ -1,8 +1,9 @@
 "use client"
 
 import Link from "next/link"
+import Image from "next/image"
 import { usePathname } from "next/navigation"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Menu, X, MapPin } from "lucide-react"
 
@@ -13,6 +14,10 @@ const navItems = [
   { href: "/drivers", label: "Drivers" },
 ] as const
 
+interface NavigationProps {
+  userLocation?: [number, number] | null
+}
+
 function navLinkClass(active: boolean) {
   return [
     "text-sm font-medium transition-colors",
@@ -20,12 +25,60 @@ function navLinkClass(active: boolean) {
   ].join(" ")
 }
 
-export function Navigation() {
+export function Navigation({ userLocation }: NavigationProps = {}) {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const [headerLocation, setHeaderLocation] = useState("Minnesota, MN")
   const pathname = usePathname()
 
+  useEffect(() => {
+    let cancelled = false
+
+    if (!userLocation) {
+      setHeaderLocation("Minnesota, MN")
+      return
+    }
+
+    const [latitude, longitude] = userLocation
+    void (async () => {
+      try {
+        const res = await fetch(
+          `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`,
+        )
+        if (!res.ok) return
+        const data = await res.json()
+        if (cancelled) return
+
+        const city = (data.city || data.locality || "").trim()
+        const stateCode = (data.principalSubdivisionCode || "").trim()
+        const stateName = (data.principalSubdivision || "").trim()
+
+        if (city && stateCode) {
+          setHeaderLocation(`${city}, ${stateCode}`)
+          return
+        }
+        if (city && stateName) {
+          setHeaderLocation(`${city}, ${stateName}`)
+          return
+        }
+        if (stateCode) {
+          setHeaderLocation(stateCode === "MN" ? "Minnesota, MN" : stateCode)
+          return
+        }
+        if (stateName) {
+          setHeaderLocation(stateName)
+        }
+      } catch {
+        /* keep fallback location label on geocode failure */
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [userLocation])
+
   return (
-    <nav className="z-50 border-b border-[#c9b8a3] bg-[#faf7f2] shadow-[0_1px_0_rgba(255,255,255,0.7)_inset] animate-fade-in">
+    <nav className="z-50 bg-transparent animate-fade-in">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-[4.25rem] items-center justify-between gap-4">
           <div className="flex min-w-0 flex-1 items-center gap-6 md:gap-10">
@@ -33,14 +86,16 @@ export function Navigation() {
               href="/"
               className="min-w-0 shrink-0 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-[#8d7b68]/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[#faf7f2]"
             >
-              <h1 className="m-0 flex flex-col items-start gap-1 p-0">
-                <span className="inline-flex items-baseline gap-1.5 font-serif text-lg font-semibold tracking-tight leading-none sm:text-xl md:text-[1.35rem]">
-                  <span className="text-[#5D4037]">MN</span>
-                  <span className="text-[#8B7355]">ISR</span>
-                </span>
-                <span className="max-w-[12rem] text-[8px] font-medium uppercase tracking-[0.14em] text-[#6d4c41] leading-tight sm:max-w-none sm:text-[9px] sm:tracking-[0.16em]">
-                  Immediate Service Response
-                </span>
+              <h1 className="m-0 inline-flex items-center gap-2 font-serif text-lg font-semibold tracking-tight leading-none text-[#5D4037] sm:text-xl md:text-[1.35rem]">
+                <Image
+                  src="/key.png"
+                  alt=""
+                  aria-hidden
+                  width={35}
+                  height={35}
+                  className="h-[35px] w-[35px] object-contain"
+                />
+                <span>BREMER</span>
               </h1>
             </Link>
 
@@ -62,7 +117,7 @@ export function Navigation() {
           <div className="hidden shrink-0 items-center gap-6 md:flex">
             <div className="flex items-center gap-2 rounded-sm border border-[#c9b8a3] bg-[#fffef9] px-3 py-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
               <MapPin className="h-4 w-4 shrink-0 text-[#5D4037]" aria-hidden />
-              <span className="text-sm font-medium text-[#3e2723]">Minneapolis, MN</span>
+              <span className="text-sm font-medium text-[#3e2723]">{headerLocation}</span>
               <span className="text-[#a89882]">·</span>
               <span className="text-sm text-[#4a342c]">(612) 555-0100</span>
             </div>
@@ -107,7 +162,7 @@ export function Navigation() {
             <div className="mt-3 flex items-center gap-2 rounded-sm border border-[#c9b8a3] bg-[#fffef9] px-3 py-2">
               <MapPin className="h-4 w-4 shrink-0 text-[#5D4037]" aria-hidden />
               <div className="text-sm">
-                <div className="font-medium text-[#3e2723]">Minneapolis, MN</div>
+                <div className="font-medium text-[#3e2723]">{headerLocation}</div>
                 <div className="text-[#5d4037]">(612) 555-0100</div>
               </div>
             </div>

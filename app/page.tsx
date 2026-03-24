@@ -92,12 +92,12 @@ export default function HomePage() {
 
   return (
     <div className="h-screen w-full flex flex-col bg-background overflow-hidden">
-      <Navigation />
+      <Navigation userLocation={userLocation} />
       <main className="flex-1 relative overflow-hidden min-h-0">
         {userLocation ? (
           <>
-            <div className="w-full h-full min-h-0 box-border flex flex-col pt-3 px-3 sm:pt-4 sm:px-4 md:pt-5 md:px-5 lg:px-6 pb-0">
-              <div className="relative flex-1 min-h-0 w-full rounded-t-2xl overflow-hidden">
+            <div className="w-full h-full min-h-0 box-border flex flex-col px-3 sm:px-4 md:px-5 lg:px-6 pb-0">
+              <div className="relative flex-1 min-h-0 w-full overflow-hidden rounded-t-2xl border border-[#c9b8a3] shadow-[0_1px_0_rgba(255,255,255,0.7)_inset]">
                 <MapComponent
                   userLocation={userLocation}
                   vehicleRouteIds={vehicleRouteIds}
