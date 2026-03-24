@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect, useCallback, useRef } from "react"
+import { Suspense, useState, useEffect, useCallback, useRef } from "react"
+import { useSearchParams, useRouter } from "next/navigation"
 import { Navigation } from "@/components/navigation"
 import { FloatingMenu } from "@/components/floating-menu"
 import { MapComponent } from "@/components/map-component"
@@ -9,6 +10,10 @@ import { HomeDashboard } from "@/components/home-dashboard"
 import { PaymentsModal } from "@/components/payments-modal"
 import { MapBottomSheet } from "@/components/map-bottom-sheet"
 import { MapToaster } from "@/components/map-toaster"
+import { DashboardQuickActions } from "@/components/dashboard-quick-actions"
+import { MapPageOverlay } from "@/components/map-page-overlay"
+import { FloatingMobileQuickNav } from "@/components/floating-mobile-quick-nav"
+import { parseMapView } from "@/lib/map-view"
 import { toast } from "sonner"
 import { reverseGeocodeMeetingLine } from "@/lib/reverse-geocode"
 import { readStoredServiceLocation, writeStoredServiceLocation } from "@/lib/service-location-storage"
@@ -19,7 +24,18 @@ const DISPATCH_PHONE_E164 = "+19529230248"
 /** Fallback map center while the location modal is open (Minneapolis, MN). */
 const DEFAULT_MAP_CENTER: [number, number] = [44.9778, -93.265]
 
-export default function HomePage() {
+function HomePageContent() {
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const mapView = parseMapView(searchParams.get("view"))
+
+  const closeMapView = useCallback(() => {
+    const p = new URLSearchParams(searchParams.toString())
+    p.delete("view")
+    const s = p.toString()
+    router.replace(s ? `/?${s}` : "/", { scroll: false })
+  }, [router, searchParams])
+
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null)
   const [serviceModalOpen, setServiceModalOpen] = useState(false)
   const [paymentsOpen, setPaymentsOpen] = useState(false)
@@ -40,6 +56,8 @@ export default function HomePage() {
   const [findMeTriggerNonce, setFindMeTriggerNonce] = useState(0)
   /** Bottom sheet over the map: always leaves a peek bar; expands/collapses (never fully dismissed). */
   const [bottomSheetExpanded, setBottomSheetExpanded] = useState(true)
+  /** Right nav drawer (hamburger): quick actions + account; hidden until opened. */
+  const [rightDrawerOpen, setRightDrawerOpen] = useState(false)
 
   /** Avoid applying an older reverse-geocode result if the user picks again quickly. */
   const mapLabelSeqRef = useRef(0)
@@ -94,6 +112,13 @@ export default function HomePage() {
   useEffect(() => {
     if (showPermissionModal) setBottomSheetExpanded(true)
   }, [showPermissionModal])
+
+  /** Full-screen map “pages” (query `view`) take focus: collapse sheet & drawer. */
+  useEffect(() => {
+    if (!mapView) return
+    setBottomSheetExpanded(false)
+    setRightDrawerOpen(false)
+  }, [mapView])
 
   useEffect(() => {
     if (serviceModalOpen) setBottomSheetExpanded(true)
@@ -258,26 +283,68 @@ export default function HomePage() {
 
   return (
     <div className="h-[100dvh] w-screen overflow-hidden bg-black">
-      <div className="mx-auto flex h-full w-full max-w-[1400px] overflow-hidden">
-        <aside className="hidden lg:flex lg:flex-1 lg:items-center lg:justify-center lg:px-8">
-          <p className="max-w-[20rem] text-center font-serif text-2xl font-medium leading-relaxed text-[#d9d9d9]">
-            Share with your community Friends, families coworkers. We will get to you immediately.
-          </p>
-        </aside>
-
-        <div className="mx-auto flex h-full w-full max-w-[560px] flex-col overflow-hidden">
+      <div className="flex h-full w-full overflow-hidden">
+        <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
           <Navigation
             userLocation={userLocation}
             locationDisplayLabel={
               serviceLocationPending ? "Select service location" : locationDisplayLabel
             }
-            frameClassName="max-w-[560px]"
+            frameClassName="max-w-none"
+            drawerOpen={rightDrawerOpen}
+            onDrawerOpenChange={setRightDrawerOpen}
+            drawerQuickActions={
+              <DashboardQuickActions
+                variant="list"
+                onRequestImmediateSupport={() => {
+                  setRightDrawerOpen(false)
+                  setPaymentsOpen(false)
+                  setServiceModalOpen(true)
+                }}
+                onOpenPayments={() => {
+                  setRightDrawerOpen(false)
+                  setServiceModalOpen(false)
+                  setPaymentsOpen(true)
+                }}
+                onOpenLocationSettings={() => {
+                  setRightDrawerOpen(false)
+                  openLocationFromDashboard()
+                }}
+                phoneE164={DISPATCH_PHONE_E164}
+              />
+            }
           />
           <main className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
             {showMainMap ? (
               <>
+                <FloatingMobileQuickNav
+                  enabled={Boolean(
+                    !mapView &&
+                      !showPermissionModal &&
+                      !rightDrawerOpen &&
+                      !serviceModalOpen &&
+                      !paymentsOpen,
+                  )}
+                  onRequestImmediateSupport={() => {
+                    setPaymentsOpen(false)
+                    setServiceModalOpen(true)
+                  }}
+                  onOpenPayments={() => {
+                    setServiceModalOpen(false)
+                    setPaymentsOpen(true)
+                  }}
+                  onOpenLocationSettings={openLocationFromDashboard}
+                  phoneE164={DISPATCH_PHONE_E164}
+                  phoneDisplay={DISPATCH_PHONE_DISPLAY}
+                  onClosePanelDismiss={() => {
+                    setBottomSheetExpanded(true)
+                    setPaymentsOpen(false)
+                    setServiceModalOpen(false)
+                  }}
+                />
                 <div className="box-border flex min-h-0 flex-1 flex-col px-3 pb-0 sm:px-4">
                   <div className="relative min-h-0 flex-1 overflow-hidden rounded-2xl">
+                    {mapView && <MapPageOverlay view={mapView} onClose={closeMapView} />}
                     <div className="map-stack absolute inset-0 min-h-0 overflow-hidden">
                       <MapToaster />
                       <MapComponent
@@ -387,7 +454,8 @@ export default function HomePage() {
               </>
             ) : (
               <div className="box-border flex min-h-0 flex-1 flex-col px-3 pb-0 sm:px-4">
-                <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl">
+                <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl">
+                  {mapView && <MapPageOverlay view={mapView} onClose={closeMapView} />}
                   <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-white/70">
                     <div className="animate-pulse-subtle px-4 text-center text-lg text-zinc-900">
                       {isRequestingLocation ? "Getting your location..." : locationError || "Waiting for location..."}
@@ -401,9 +469,19 @@ export default function HomePage() {
             )}
           </main>
         </div>
-
-        <aside className="hidden lg:block lg:flex-1" aria-hidden />
       </div>
     </div>
+  )
+}
+
+export default function HomePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="h-[100dvh] w-screen overflow-hidden bg-black" aria-busy="true" aria-label="Loading" />
+      }
+    >
+      <HomePageContent />
+    </Suspense>
   )
 }
