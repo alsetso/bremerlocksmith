@@ -3,7 +3,7 @@
 import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Menu, X, MapPin } from "lucide-react"
 
@@ -26,8 +26,14 @@ function navLinkClass(active: boolean) {
 }
 
 export function Navigation({ userLocation }: NavigationProps = {}) {
+  const PHONE_DISPLAY = "(952) 923 0248"
+  const PHONE_E164 = "+19529230248"
+
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const [isPhoneMenuOpen, setIsPhoneMenuOpen] = useState(false)
   const [headerLocation, setHeaderLocation] = useState("Minnesota, MN")
+  const desktopPhoneRef = useRef<HTMLDivElement>(null)
+  const mobilePhoneRef = useRef<HTMLDivElement>(null)
   const pathname = usePathname()
 
   useEffect(() => {
@@ -77,8 +83,19 @@ export function Navigation({ userLocation }: NavigationProps = {}) {
     }
   }, [userLocation])
 
+  useEffect(() => {
+    const onPointerDown = (event: MouseEvent) => {
+      const target = event.target as Node
+      const inDesktop = desktopPhoneRef.current?.contains(target) ?? false
+      const inMobile = mobilePhoneRef.current?.contains(target) ?? false
+      if (!inDesktop && !inMobile) setIsPhoneMenuOpen(false)
+    }
+    document.addEventListener("mousedown", onPointerDown)
+    return () => document.removeEventListener("mousedown", onPointerDown)
+  }, [])
+
   return (
-    <nav className="z-50 bg-transparent animate-fade-in">
+    <nav className="relative z-[1200] overflow-visible bg-transparent animate-fade-in">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-[4.25rem] items-center justify-between gap-4">
           <div className="flex min-w-0 flex-1 items-center gap-6 md:gap-10">
@@ -115,11 +132,39 @@ export function Navigation({ userLocation }: NavigationProps = {}) {
           </div>
 
           <div className="hidden shrink-0 items-center gap-6 md:flex">
-            <div className="flex items-center gap-2 rounded-sm border border-[#c9b8a3] bg-[#fffef9] px-3 py-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
+            <div
+              ref={desktopPhoneRef}
+              className="relative flex items-center gap-2 rounded-sm border border-[#c9b8a3] bg-[#fffef9] px-3 py-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]"
+            >
               <MapPin className="h-4 w-4 shrink-0 text-[#5D4037]" aria-hidden />
               <span className="text-sm font-medium text-[#3e2723]">{headerLocation}</span>
               <span className="text-[#a89882]">·</span>
-              <span className="text-sm text-[#4a342c]">(612) 555-0100</span>
+              <button
+                type="button"
+                onClick={() => setIsPhoneMenuOpen((s) => !s)}
+                className="inline-flex items-center gap-1 text-sm text-[#4a342c] hover:text-[#3e2723]"
+                aria-haspopup="menu"
+                aria-expanded={isPhoneMenuOpen}
+              >
+                <span>{PHONE_DISPLAY}</span>
+                <span className="text-xs text-[#8d7b68]">▾</span>
+              </button>
+              {isPhoneMenuOpen && (
+                <div className="absolute right-0 top-[calc(100%+0.35rem)] z-50 min-w-[9rem] rounded-sm border border-[#c9b8a3] bg-[#fffef9] p-1.5 shadow-[0_8px_22px_rgba(62,39,35,0.18)]">
+                  <a
+                    href={`tel:${PHONE_E164}`}
+                    className="block rounded-sm px-2.5 py-1.5 text-sm text-[#3e2723] hover:bg-[#efe8dd]"
+                  >
+                    Call
+                  </a>
+                  <a
+                    href={`sms:${PHONE_E164}`}
+                    className="block rounded-sm px-2.5 py-1.5 text-sm text-[#3e2723] hover:bg-[#efe8dd]"
+                  >
+                    Text
+                  </a>
+                </div>
+              )}
             </div>
           </div>
 
@@ -159,12 +204,40 @@ export function Navigation({ userLocation }: NavigationProps = {}) {
                 </Link>
               )
             })}
-            <div className="mt-3 flex items-center gap-2 rounded-sm border border-[#c9b8a3] bg-[#fffef9] px-3 py-2">
+            <div
+              ref={mobilePhoneRef}
+              className="relative mt-3 flex items-center gap-2 rounded-sm border border-[#c9b8a3] bg-[#fffef9] px-3 py-2"
+            >
               <MapPin className="h-4 w-4 shrink-0 text-[#5D4037]" aria-hidden />
               <div className="text-sm">
                 <div className="font-medium text-[#3e2723]">{headerLocation}</div>
-                <div className="text-[#5d4037]">(612) 555-0100</div>
+                <button
+                  type="button"
+                  onClick={() => setIsPhoneMenuOpen((s) => !s)}
+                  className="inline-flex items-center gap-1 text-[#5d4037] hover:text-[#3e2723]"
+                  aria-haspopup="menu"
+                  aria-expanded={isPhoneMenuOpen}
+                >
+                  <span>{PHONE_DISPLAY}</span>
+                  <span className="text-xs text-[#8d7b68]">▾</span>
+                </button>
               </div>
+              {isPhoneMenuOpen && (
+                <div className="absolute right-2 top-[calc(100%+0.3rem)] z-50 min-w-[8.5rem] rounded-sm border border-[#c9b8a3] bg-[#fffef9] p-1.5 shadow-[0_8px_22px_rgba(62,39,35,0.18)]">
+                  <a
+                    href={`tel:${PHONE_E164}`}
+                    className="block rounded-sm px-2.5 py-1.5 text-sm text-[#3e2723] hover:bg-[#efe8dd]"
+                  >
+                    Call
+                  </a>
+                  <a
+                    href={`sms:${PHONE_E164}`}
+                    className="block rounded-sm px-2.5 py-1.5 text-sm text-[#3e2723] hover:bg-[#efe8dd]"
+                  >
+                    Text
+                  </a>
+                </div>
+              )}
             </div>
           </div>
         </div>
