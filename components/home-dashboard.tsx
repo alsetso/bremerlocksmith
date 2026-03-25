@@ -8,6 +8,8 @@ interface HomeDashboardProps {
   onOpenLocationSettings: () => void
   phoneE164: string
   phoneDisplay: string
+  locationSummary?: string | null
+  locationPending?: boolean
 }
 
 export function HomeDashboard({
@@ -16,6 +18,8 @@ export function HomeDashboard({
   onOpenLocationSettings,
   phoneE164,
   phoneDisplay,
+  locationSummary,
+  locationPending,
 }: HomeDashboardProps) {
   return (
     <div className="flex w-full min-w-0 shrink-0 flex-col gap-1.5">
@@ -32,6 +36,8 @@ export function HomeDashboard({
         onOpenLocationSettings={onOpenLocationSettings}
         phoneE164={phoneE164}
         variant="grid"
+        locationSummary={locationSummary}
+        locationPending={locationPending}
       />
       <p className="shrink-0 border-t border-zinc-700/60 pt-2 text-[10px] leading-relaxed text-zinc-500 sm:pt-2.5 sm:text-[11px]">
         Minnesota born and raised—a family-owned contracting and locksmith company. We&apos;re building reliable,

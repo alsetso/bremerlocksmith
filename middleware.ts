@@ -5,6 +5,9 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   if (pathname === "/") return NextResponse.next()
+  if (pathname === "/samgov") return NextResponse.next()
+  if (pathname === "/integrations") return NextResponse.next()
+  if (pathname === "/map") return NextResponse.next()
   if (pathname.startsWith("/api")) return NextResponse.next()
   if (pathname.startsWith("/_next")) return NextResponse.next()
   if (pathname.includes(".")) return NextResponse.next()

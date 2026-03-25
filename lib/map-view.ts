@@ -1,7 +1,7 @@
-/** Map container “page” overlays driven by `/?view=` on the home route. */
-export type MapView = "services" | "partners" | "drivers"
+/** Map container “page” overlays driven by `/map?view=` on the map route. */
+export type MapView = "services" | "partners" | "drivers" | "accounts"
 
-const MAP_VIEWS = new Set<string>(["services", "partners", "drivers"])
+const MAP_VIEWS = new Set<string>(["services", "partners", "drivers", "accounts"])
 
 export function parseMapView(value: string | null): MapView | null {
   if (!value) return null

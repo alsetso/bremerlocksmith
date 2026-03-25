@@ -31,6 +31,13 @@ interface MapComponentProps {
   onGeolocateSuccess?: (coords: [number, number]) => void
   /** GPS denied / failed — parent should pin service location to map center (“dropped pin”). */
   onGeolocateFallback?: (coords: [number, number]) => void
+  /**
+   * When true, hide the static blue service pin and rely on Mapbox GeolocateControl for the
+   * live dot, accuracy ring, and heading — avoids duplicating the user location on the map.
+   */
+  liveGpsPrimary?: boolean
+  /** Green pin: device position while meeting point is fixed (independent live tracking). */
+  trackedDevicePin?: [number, number] | null
 }
 
 function escapePopupText(s: string) {
@@ -62,6 +69,8 @@ function isValidVehiclePosition(lat: number, lng: number) {
 }
 
 const USER_VIEW_ZOOM = 13
+/** Zoom when user taps the map to drop / confirm a meeting pin. */
+const LOCATION_PICK_ZOOM = 18
 const FLY_TO_USER_DURATION_SEC = 1.05
 const TRANSIT_LINE_SOURCE = "transit-line"
 const TRANSIT_STOPS_SOURCE = "transit-stops"
@@ -82,6 +91,8 @@ export function MapComponent({
   findMeTriggerNonce = 0,
   onGeolocateSuccess,
   onGeolocateFallback,
+  liveGpsPrimary = false,
+  trackedDevicePin = null,
 }: MapComponentProps) {
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<mapboxgl.Map | null>(null)
@@ -113,6 +124,11 @@ export function MapComponent({
   onGeolocateSuccessRef.current = onGeolocateSuccess
   const onGeolocateFallbackRef = useRef(onGeolocateFallback)
   onGeolocateFallbackRef.current = onGeolocateFallback
+  const liveGpsPrimaryRef = useRef(liveGpsPrimary)
+  liveGpsPrimaryRef.current = liveGpsPrimary
+  const trackedDevicePinRef = useRef(trackedDevicePin)
+  trackedDevicePinRef.current = trackedDevicePin
+  const deviceMarkerRef = useRef<mapboxgl.Marker | null>(null)
 
   useEffect(() => {
     ;(mapInstanceRef.current as any)?._refreshTransitOverlay?.()
@@ -133,7 +149,21 @@ export function MapComponent({
   useEffect(() => {
     ;(mapInstanceRef.current as any)?._syncUserPins?.()
     void (mapInstanceRef.current as any)?._updateMetroVehicles?.()
-  }, [mapCenter, locationPickerActive, pickerPin, selectedLocationLabel])
+  }, [mapCenter, locationPickerActive, pickerPin, selectedLocationLabel, liveGpsPrimary, trackedDevicePin])
+
+  /** Live GPS became primary after map existed — drop static pin and start geolocate + fly. */
+  useEffect(() => {
+    const map = mapInstanceRef.current as {
+      _syncUserPins?: () => void
+      _triggerFindMe?: () => void
+      _pendingFlyToLive?: boolean
+    } | null
+    if (!map?._syncUserPins) return
+    map._syncUserPins()
+    if (!liveGpsPrimary) return
+    map._pendingFlyToLive = true
+    map._triggerFindMe?.()
+  }, [liveGpsPrimary])
 
   useEffect(() => {
     ;(mapInstanceRef.current as any)?._syncFindMeControl?.()
@@ -176,7 +206,7 @@ export function MapComponent({
           const [pLat, pLng] = pin
           map.flyTo({
             center: [pLng, pLat],
-            zoom: Math.max(map.getZoom(), 14),
+            zoom: LOCATION_PICK_ZOOM,
             duration: animated ? FLY_TO_USER_DURATION_SEC * 1000 : 0,
           })
           return
@@ -184,9 +214,10 @@ export function MapComponent({
       }
       const [lat, lng] = mapCenterRef.current
       if (typeof lat !== "number" || typeof lng !== "number" || Number.isNaN(lat) || Number.isNaN(lng)) return
+      const zoom = liveGpsPrimaryRef.current ? LOCATION_PICK_ZOOM : USER_VIEW_ZOOM
       map.flyTo({
         center: [lng, lat],
-        zoom: USER_VIEW_ZOOM,
+        zoom,
         duration: animated ? FLY_TO_USER_DURATION_SEC * 1000 : 0,
       })
     }
@@ -217,6 +248,8 @@ export function MapComponent({
       const selectedLabel = selectedLocationLabelRef.current?.trim() ? selectedLocationLabelRef.current!.trim() : null
 
       if (pickerActive) {
+        deviceMarkerRef.current?.remove()
+        deviceMarkerRef.current = null
         if (userMarkerRef.current) {
           userMarkerRef.current.remove()
           userMarkerRef.current = null
@@ -248,6 +281,14 @@ export function MapComponent({
       pickerMarkerRef.current?.remove()
       pickerMarkerRef.current = null
 
+      if (liveGpsPrimaryRef.current) {
+        deviceMarkerRef.current?.remove()
+        deviceMarkerRef.current = null
+        userMarkerRef.current?.remove()
+        userMarkerRef.current = null
+        return
+      }
+
       const html = buildServiceLocationPopupHtml(selectedLabel)
 
       if (!userMarkerRef.current) {
@@ -273,6 +314,29 @@ export function MapComponent({
           }
         }
       }
+
+      const trackPin = trackedDevicePinRef.current
+      if (trackPin && trackPin.length >= 2) {
+        const [dLat, dLng] = trackPin
+        if (!deviceMarkerRef.current) {
+          deviceMarkerRef.current = new mapboxgl.Marker({ color: "#22c55e" })
+            .setLngLat([dLng, dLat])
+            .setPopup(
+              new mapboxgl.Popup({ offset: 14 }).setHTML(`
+          <div style="color:#111;font-weight:600;text-align:left;padding:8px 10px;max-width:220px;">
+            <div style="color:#16a34a;font-size:12px;margin-bottom:4px;font-weight:700;">You · live</div>
+            <div style="font-size:11px;color:#444;line-height:1.4;">Updates as you move. Meeting pin may differ.</div>
+          </div>
+        `),
+            )
+            .addTo(map)
+        } else {
+          deviceMarkerRef.current.setLngLat([dLng, dLat])
+        }
+      } else {
+        deviceMarkerRef.current?.remove()
+        deviceMarkerRef.current = null
+      }
     }
 
     const syncFindMeControl = () => {
@@ -292,6 +356,7 @@ export function MapComponent({
 
       /** Must stay synchronous after a user gesture so the browser can show the location prompt. */
       const runSmartFindMe = () => {
+        ;(map as { _pendingFlyToLive?: boolean })._pendingFlyToLive = true
         void geolocateForFindMe?.trigger()
       }
 
@@ -331,6 +396,15 @@ export function MapComponent({
 
           geolocate.on("geolocate", (e: { coords: GeolocationCoordinates }) => {
             onGeolocateSuccessRef.current?.([e.coords.latitude, e.coords.longitude])
+            const m = map as { _pendingFlyToLive?: boolean }
+            if (m._pendingFlyToLive) {
+              m._pendingFlyToLive = false
+              map.flyTo({
+                center: [e.coords.longitude, e.coords.latitude],
+                zoom: LOCATION_PICK_ZOOM,
+                duration: Math.round(FLY_TO_USER_DURATION_SEC * 1000),
+              })
+            }
           })
           geolocate.on("error", () => {
             const c = map.getCenter()
@@ -540,30 +614,37 @@ export function MapComponent({
     const openPendingConfirmPopup = (lat: number, lng: number) => {
       clearPendingConfirm()
 
+      map.flyTo({
+        center: [lng, lat],
+        zoom: LOCATION_PICK_ZOOM,
+        duration: Math.round(FLY_TO_USER_DURATION_SEC * 1000),
+      })
+
       const root = document.createElement("div")
       root.style.cssText =
-        "padding:12px 14px;min-width:220px;max-width:min(280px,85vw);color:#111;font-family:system-ui,sans-serif;"
-      const title = document.createElement("div")
-      title.textContent = "New meeting spot"
-      title.style.cssText = "font-weight:700;font-size:14px;color:#c2410c;margin-bottom:6px;"
-      const coords = document.createElement("div")
-      coords.textContent = `${lat.toFixed(5)}, ${lng.toFixed(5)}`
-      coords.style.cssText = "font-family:ui-monospace,monospace;font-size:11px;color:#666;margin-bottom:12px;"
+        "padding:14px 16px;min-width:200px;max-width:min(260px,88vw);background:#18181b;color:#fafafa;font-family:system-ui,-apple-system,sans-serif;"
+
+      const title = document.createElement("p")
+      title.textContent = "Use this location?"
+      title.style.cssText =
+        "margin:0 0 14px;font-size:15px;font-weight:600;line-height:1.25;letter-spacing:-0.02em;color:#fafafa;"
 
       const row = document.createElement("div")
-      row.style.cssText = "display:flex;gap:8px;flex-wrap:wrap;align-items:center;"
+      row.style.cssText = "display:flex;gap:8px;align-items:stretch;"
 
       const btnConfirm = document.createElement("button")
       btnConfirm.type = "button"
-      btnConfirm.textContent = "Confirm new location"
+      btnConfirm.textContent = "Use location"
+      btnConfirm.setAttribute("aria-label", "Confirm meeting location at map pin")
       btnConfirm.style.cssText =
-        "flex:1;min-width:120px;padding:8px 12px;border-radius:8px;border:none;background:#2563eb;color:#fff;font-weight:600;font-size:12px;cursor:pointer;"
+        "flex:1;min-width:0;padding:10px 12px;border-radius:10px;border:none;background:#3b82f6;color:#fff;font-weight:600;font-size:13px;cursor:pointer;line-height:1.2;"
 
       const btnCancel = document.createElement("button")
       btnCancel.type = "button"
       btnCancel.textContent = "Cancel"
+      btnCancel.setAttribute("aria-label", "Dismiss and remove pin")
       btnCancel.style.cssText =
-        "padding:8px 12px;border-radius:8px;border:1px solid #d4d4d4;background:#fff;color:#444;font-weight:600;font-size:12px;cursor:pointer;"
+        "padding:10px 12px;border-radius:10px;border:1px solid #3f3f46;background:#27272a;color:#e4e4e7;font-weight:500;font-size:13px;cursor:pointer;line-height:1.2;white-space:nowrap;"
 
       const commit = () => {
         clearPendingConfirm()
@@ -586,10 +667,14 @@ export function MapComponent({
       row.appendChild(btnConfirm)
       row.appendChild(btnCancel)
       root.appendChild(title)
-      root.appendChild(coords)
       root.appendChild(row)
 
-      const popup = new mapboxgl.Popup({ offset: 20, closeButton: true }).setDOMContent(root)
+      const popup = new mapboxgl.Popup({
+        offset: 18,
+        closeButton: false,
+        maxWidth: "280px",
+        className: "bremer-map-location-popup",
+      }).setDOMContent(root)
 
       const marker = new mapboxgl.Marker({ color: "#f59e0b" })
         .setLngLat([lng, lat])
@@ -638,7 +723,18 @@ export function MapComponent({
       syncFindMeControl()
       ;(map as any)._syncUserPins = syncUserPins
       ;(map as any)._syncFindMeControl = syncFindMeControl
-      setTimeout(() => flyToUserView(true), 40)
+      setTimeout(() => {
+        if (!liveGpsPrimaryRef.current) flyToUserView(true)
+      }, 40)
+      if (
+        liveGpsPrimaryRef.current &&
+        geolocateForFindMe &&
+        typeof navigator !== "undefined" &&
+        "geolocation" in navigator
+      ) {
+        ;(map as { _pendingFlyToLive?: boolean })._pendingFlyToLive = true
+        void geolocateForFindMe.trigger()
+      }
       refreshTransitOverlay()
       void updateMetroVehicles()
       map.on("click", TRANSIT_STOPS_LAYER, onStopClick)
@@ -657,8 +753,11 @@ export function MapComponent({
     ;(mapInstanceRef.current as any)._syncUserPins = syncUserPins
     ;(mapInstanceRef.current as any)._syncFindMeControl = syncFindMeControl
     ;(mapInstanceRef.current as any)._cleanup = () => {
+      ;(map as { _pendingFlyToLive?: boolean })._pendingFlyToLive = false
       pendingConfirmMarkerRef.current?.remove()
       pendingConfirmMarkerRef.current = null
+      deviceMarkerRef.current?.remove()
+      deviceMarkerRef.current = null
       clearInterval(metroInterval)
       clearVehicleMarkers()
       if (findMeControlInstance) {
@@ -681,6 +780,8 @@ export function MapComponent({
     return () => {
       pendingConfirmMarkerRef.current?.remove()
       pendingConfirmMarkerRef.current = null
+      deviceMarkerRef.current?.remove()
+      deviceMarkerRef.current = null
       userMarkerRef.current?.remove()
       userMarkerRef.current = null
       pickerMarkerRef.current?.remove()

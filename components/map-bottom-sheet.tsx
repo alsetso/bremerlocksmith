@@ -10,6 +10,7 @@ type MapBottomSheetProps = {
   onExpandedChange: (next: boolean) => void
   title: string
   children: React.ReactNode
+  className?: string
 }
 
 export function MapBottomSheet({
@@ -18,6 +19,7 @@ export function MapBottomSheet({
   onExpandedChange,
   title,
   children,
+  className,
 }: MapBottomSheetProps) {
   const isOpen = Boolean(lockExpanded || expanded)
 
@@ -26,6 +28,7 @@ export function MapBottomSheet({
       className={cn(
         "pointer-events-auto absolute bottom-0 left-0 right-0 z-20 flex flex-col rounded-t-2xl border border-zinc-700/60 border-b-0 bg-[#0c0a08] shadow-[0_-12px_40px_rgba(0,0,0,0.45)] transition-[height] duration-300 ease-out",
         isOpen ? "h-[min(85dvh,520px)]" : "h-[3.25rem]",
+        className,
       )}
     >
       <button

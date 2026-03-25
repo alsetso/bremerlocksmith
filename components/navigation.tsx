@@ -8,20 +8,21 @@ import { Suspense, useCallback, useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft, Menu, X } from "lucide-react"
 import { getSupabaseBrowserClient, hasSupabaseBrowserConfig } from "@/lib/supabase-browser"
+import { DISPATCH_PHONE_DISPLAY, DISPATCH_PHONE_E164 } from "@/lib/dispatch-contact"
 
-/** Map “pages” use `/?view=` on the home route; see `lib/map-view.ts`. */
+/** Map “pages” use `/map?view=`; see `lib/map-view.ts`. */
 const navItems = [
-  { href: "/", label: "Home", view: null },
-  { href: "/?view=services", label: "Services", view: "services" },
-  { href: "/?view=partners", label: "Partners", view: "partners" },
-  { href: "/?view=drivers", label: "Drivers", view: "drivers" },
+  { href: "/map", label: "Map", view: null },
+  { href: "/map?view=services", label: "Services", view: "services" },
+  { href: "/map?view=drivers", label: "Drivers", view: "drivers" },
+  { href: "/map?view=accounts", label: "Accounts", view: "accounts" },
 ] as const
 
 function isNavActive(pathname: string, searchView: string | null, item: (typeof navItems)[number]) {
   if (item.view === null) {
-    return pathname === "/" && !searchView
+    return pathname === "/map" && !searchView
   }
-  return pathname === "/" && searchView === item.view
+  return pathname === "/map" && searchView === item.view
 }
 
 interface NavigationProps {
@@ -53,9 +54,6 @@ function NavigationImpl({
   onDrawerOpenChange,
   drawerQuickActions,
 }: NavigationProps = {}) {
-  const PHONE_DISPLAY = "(952) 923 0248"
-  const PHONE_E164 = "+19529230248"
-
   const isControlled = drawerOpenProp !== undefined && onDrawerOpenChange !== undefined
   const [internalDrawerOpen, setInternalDrawerOpen] = useState(false)
   const drawerOpen = isControlled ? drawerOpenProp! : internalDrawerOpen
@@ -77,6 +75,7 @@ function NavigationImpl({
   const [authError, setAuthError] = useState<string | null>(null)
   const [isPhoneMenuOpen, setIsPhoneMenuOpen] = useState(false)
   const [authEmail, setAuthEmail] = useState<string | null>(null)
+  const [isScrolled, setIsScrolled] = useState(false)
   const [headerLocation, setHeaderLocation] = useState("Minnesota, MN")
   const phoneMenuRef = useRef<HTMLDivElement>(null)
   const navMenuRef = useRef<HTMLDivElement>(null)
@@ -84,6 +83,9 @@ function NavigationImpl({
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const searchView = searchParams.get("view")
+  const isMapRoute = pathname === "/map"
+  const logoSubtext = isMapRoute ? headerLocation : "CONTRACTING"
+  const logoSubtextTitle = isMapRoute ? headerLocation : "CONTRACTING"
 
   useEffect(() => {
     let cancelled = false
@@ -171,6 +173,24 @@ function NavigationImpl({
     return () => document.removeEventListener("mousedown", onPointerDown)
   }, [setDrawerOpen])
 
+  useEffect(() => {
+    const checkScrolled = () => {
+      const windowScrolled = window.scrollY > 2 || document.documentElement.scrollTop > 2
+      const rootScrolled = Array.from(document.querySelectorAll<HTMLElement>("[data-app-scroll-root]")).some(
+        (el) => el.scrollTop > 2,
+      )
+      setIsScrolled(windowScrolled || rootScrolled)
+    }
+
+    checkScrolled()
+    window.addEventListener("scroll", checkScrolled, { passive: true })
+    document.addEventListener("scroll", checkScrolled, true)
+    return () => {
+      window.removeEventListener("scroll", checkScrolled)
+      document.removeEventListener("scroll", checkScrolled, true)
+    }
+  }, [])
+
   const handleMenuToggle = () => {
     const next = !drawerOpen
     setDrawerOpen(next)
@@ -257,7 +277,11 @@ function NavigationImpl({
   const closeDrawerAfterNav = () => setDrawerOpen(false)
 
   return (
-    <nav className="relative z-[1300] overflow-visible bg-transparent animate-fade-in">
+    <nav
+      className={`sticky top-0 z-[1300] overflow-visible animate-fade-in transition-[backdrop-filter,background-color] duration-200 ${
+        isScrolled ? "bg-zinc-950/45 backdrop-blur-[10px]" : "bg-transparent"
+      }`}
+    >
       <div
         className={`mx-auto w-full px-4 pt-[env(safe-area-inset-top)] sm:px-6 lg:px-8 ${
           frameClassName ?? "max-w-7xl"
@@ -277,15 +301,19 @@ function NavigationImpl({
                 height={35}
                 className="h-[30px] w-[30px] object-contain sm:h-[35px] sm:w-[35px]"
               />
-              <span className="inline-flex flex-col gap-0.5">
+              <span className={`inline-flex flex-col ${isMapRoute ? "gap-0.5" : "gap-0"}`}>
                 <span className="font-serif text-sm font-semibold tracking-tight text-white sm:text-base md:text-lg">
                   BREMER
                 </span>
                 <span
-                  className="max-w-[9rem] truncate text-[6px] leading-none text-zinc-200/90 sm:max-w-[12rem]"
-                  title={headerLocation}
+                  className={`max-w-[9rem] truncate leading-none sm:max-w-[12rem] ${
+                    isMapRoute
+                      ? "text-[6px] text-zinc-200/90"
+                      : "-mt-0.5 text-[8px] font-semibold uppercase tracking-[0.28em] text-zinc-200/80"
+                  }`}
+                  title={logoSubtextTitle}
                 >
-                  {headerLocation}
+                  {logoSubtext}
                 </span>
               </span>
             </h1>
@@ -319,19 +347,19 @@ function NavigationImpl({
                 aria-haspopup="menu"
                 aria-expanded={isPhoneMenuOpen}
               >
-                <span>{PHONE_DISPLAY}</span>
+                <span>{DISPATCH_PHONE_DISPLAY}</span>
                 <span className="text-xs text-zinc-400">▾</span>
               </button>
               {isPhoneMenuOpen && (
                 <div className="absolute right-0 top-[calc(100%+0.35rem)] z-50 min-w-[9rem] rounded-sm border border-zinc-700 bg-zinc-900 p-1.5 shadow-[0_8px_22px_rgba(0,0,0,0.45)]">
                   <a
-                    href={`tel:${PHONE_E164}`}
+                    href={`tel:${DISPATCH_PHONE_E164}`}
                     className="block rounded-sm px-2.5 py-1.5 text-sm text-zinc-100 hover:bg-zinc-800"
                   >
                     Call
                   </a>
                   <a
-                    href={`sms:${PHONE_E164}`}
+                    href={`sms:${DISPATCH_PHONE_E164}`}
                     className="block rounded-sm px-2.5 py-1.5 text-sm text-zinc-100 hover:bg-zinc-800"
                   >
                     Text
@@ -345,12 +373,12 @@ function NavigationImpl({
                 variant="ghost"
                 size="icon"
                 onClick={handleMenuToggle}
-                className="text-white hover:bg-white/10"
+                className="text-white hover:bg-white/10 md:border md:border-zinc-700/90 md:bg-zinc-900/95 md:text-zinc-200 md:shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] md:hover:bg-zinc-800 md:hover:text-zinc-50 md:active:bg-zinc-800"
                 aria-haspopup="dialog"
                 aria-expanded={drawerOpen}
                 aria-controls="app-right-drawer"
               >
-                {drawerOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+                {drawerOpen ? <X className="h-6 w-6" strokeWidth={2} /> : <Menu className="h-6 w-6" strokeWidth={2} />}
               </Button>
             </div>
           </div>

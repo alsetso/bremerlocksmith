@@ -30,6 +30,11 @@ interface ServiceRequestModalProps {
   locationPending?: boolean
   /** User picked a place name / address instead of live GPS. */
   addressLabel?: string | null
+  /** Meeting point follows device GPS on the map — hide separate movement toggle. */
+  liveMeetingLockedToGps?: boolean
+  deviceLiveTracking?: boolean
+  onDeviceLiveTrackingChange?: (on: boolean) => void
+  liveDeviceCoordsLine?: string | null
   /** Opens the location picker (search, map pin, or live GPS) below the map. */
   onEditLocation?: () => void
   initialServiceType?: "lockout" | "other" | "towing" | "ditch_recovery"
@@ -66,6 +71,10 @@ export function ServiceRequestModal({
   coordinates,
   locationPending = false,
   addressLabel,
+  liveMeetingLockedToGps = false,
+  deviceLiveTracking = false,
+  onDeviceLiveTrackingChange,
+  liveDeviceCoordsLine = null,
   onEditLocation,
   initialServiceType,
   initialLockoutType,
@@ -166,6 +175,8 @@ export function ServiceRequestModal({
           notes: request.notes,
           userAddress: userAddress,
           coordinates: coordinates.trim() || "Not provided",
+          liveDeviceCoordinates:
+            deviceLiveTracking && liveDeviceCoordsLine?.trim() ? liveDeviceCoordsLine.trim() : undefined,
         }),
       })
 
@@ -301,6 +312,45 @@ export function ServiceRequestModal({
           <div className="flex items-center gap-1.5 font-mono text-[10px] text-zinc-500">
             <Navigation className="h-3 w-3 shrink-0" aria-hidden />
             {coordinates}
+          </div>
+        ) : null}
+        {liveMeetingLockedToGps ? (
+          <p className={`text-[10px] leading-snug ${muted}`}>
+            Meeting point follows your GPS on the map. Dispatch uses that path — no separate movement link needed.
+          </p>
+        ) : onDeviceLiveTrackingChange ? (
+          <div className="flex flex-col gap-2 rounded-md border border-zinc-700/70 bg-zinc-900/40 px-2.5 py-2">
+            <div className="flex items-center justify-between gap-2">
+              <span className={`text-[11px] font-medium leading-tight ${ink}`}>Share live movement</span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={deviceLiveTracking}
+                onClick={() => onDeviceLiveTrackingChange(!deviceLiveTracking)}
+                className={`relative h-6 w-10 shrink-0 rounded-full transition-colors ${
+                  deviceLiveTracking ? "bg-emerald-600/90" : "bg-zinc-700"
+                }`}
+              >
+                <span
+                  className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
+                    deviceLiveTracking ? "left-[1.125rem]" : "left-0.5"
+                  }`}
+                />
+                <span className="sr-only">{deviceLiveTracking ? "On" : "Off"}</span>
+              </button>
+            </div>
+            <p className={`text-[10px] leading-snug ${muted}`}>
+              Optional: send updating coordinates while you move. Meeting location above can stay fixed (e.g. building
+              entrance).
+            </p>
+            {deviceLiveTracking && liveDeviceCoordsLine?.trim() ? (
+              <div className="flex items-center gap-1.5 font-mono text-[10px] text-emerald-400/90">
+                <Navigation className="h-3 w-3 shrink-0" aria-hidden />
+                Live: {liveDeviceCoordsLine.trim()}
+              </div>
+            ) : deviceLiveTracking ? (
+              <p className={`text-[10px] ${muted}`}>Waiting for GPS…</p>
+            ) : null}
           </div>
         ) : null}
       </div>
@@ -449,6 +499,12 @@ export function ServiceRequestModal({
                   <div className="pt-1">
                     <dt className={`mb-1 ${muted}`}>Notes</dt>
                     <dd className={`${ink}`}>{request.notes}</dd>
+                  </div>
+                ) : null}
+                {deviceLiveTracking && liveDeviceCoordsLine?.trim() ? (
+                  <div className="flex justify-between gap-4 border-t border-zinc-700/50 pt-2">
+                    <dt className={muted}>Live device</dt>
+                    <dd className={`text-right font-mono text-[11px] ${ink}`}>{liveDeviceCoordsLine.trim()}</dd>
                   </div>
                 ) : null}
               </dl>

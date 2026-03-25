@@ -1,6 +1,7 @@
 "use client"
 
-import { Suspense, useState, useEffect, useCallback, useRef } from "react"
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import Link from "next/link"
 import { useSearchParams, useRouter } from "next/navigation"
 import { Navigation } from "@/components/navigation"
 import { FloatingMenu } from "@/components/floating-menu"
@@ -12,17 +13,25 @@ import { MapBottomSheet } from "@/components/map-bottom-sheet"
 import { MapToaster } from "@/components/map-toaster"
 import { DashboardQuickActions } from "@/components/dashboard-quick-actions"
 import { MapPageOverlay } from "@/components/map-page-overlay"
+import { MapOverlayDialog } from "@/components/map-overlay-dialog"
 import { FloatingMobileQuickNav } from "@/components/floating-mobile-quick-nav"
 import { parseMapView } from "@/lib/map-view"
+import { getMapChromeFlags } from "@/lib/map-chrome-flags"
+import { DISPATCH_PHONE_DISPLAY, DISPATCH_PHONE_E164 } from "@/lib/dispatch-contact"
+import { useHomeQuickActionHandlers } from "@/hooks/use-home-quick-action-handlers"
 import { toast } from "sonner"
 import { reverseGeocodeMeetingLine } from "@/lib/reverse-geocode"
 import { readStoredServiceLocation, writeStoredServiceLocation } from "@/lib/service-location-storage"
-
-const DISPATCH_PHONE_DISPLAY = "(952) 923 0248"
-const DISPATCH_PHONE_E164 = "+19529230248"
+import { HomeHeroSection } from "@/components/home-hero-section"
+import { HomeDemoWorkflowSection } from "@/components/home-demo-workflow-section"
 
 /** Fallback map center while the location modal is open (Minneapolis, MN). */
 const DEFAULT_MAP_CENTER: [number, number] = [44.9778, -93.265]
+
+/** Browser / emulator default that is not a real customer position. */
+const FAKE_GEO_LOC: [number, number] = [53.0793, 8.8017]
+
+const DEVICE_LIVE_TRACKING_STORAGE_KEY = "bremer-device-live-tracking"
 
 function HomePageContent() {
   const searchParams = useSearchParams()
@@ -33,41 +42,94 @@ function HomePageContent() {
     const p = new URLSearchParams(searchParams.toString())
     p.delete("view")
     const s = p.toString()
-    router.replace(s ? `/?${s}` : "/", { scroll: false })
+    router.replace(s ? `/map?${s}` : "/map", { scroll: false })
   }, [router, searchParams])
 
-  const [userLocation, setUserLocation] = useState<[number, number] | null>(null)
+  const [userLocation, setUserLocation] = useState<[number, number]>(DEFAULT_MAP_CENTER)
   const [serviceModalOpen, setServiceModalOpen] = useState(false)
   const [paymentsOpen, setPaymentsOpen] = useState(false)
   const [locationError, setLocationError] = useState<string | null>(null)
   const [showPermissionModal, setShowPermissionModal] = useState<boolean>(false)
-  const [isRequestingLocation, setIsRequestingLocation] = useState<boolean>(false)
   /** When the user picks an address (typed, suggestion, or map pin), show that under the logo and in the service flow. */
   const [locationDisplayLabel, setLocationDisplayLabel] = useState<string | null>(null)
   /** User skipped location in the permission step — show service flow with “Select service location” until they share a real location. */
-  const [serviceLocationPending, setServiceLocationPending] = useState(false)
+  const [serviceLocationPending, setServiceLocationPending] = useState(true)
   /** Purple pin on the main map during the location modal (lat, lng). */
   const [pickerPin, setPickerPin] = useState<[number, number] | null>(null)
   /** After changing location from the service request flow, reopen that flow. */
   const [resumeServiceAfterLocation, setResumeServiceAfterLocation] = useState(false)
   /** User chose live GPS (Find me) vs a saved typed address. */
-  const [liveLocationMode, setLiveLocationMode] = useState(true)
+  const [liveLocationMode, setLiveLocationMode] = useState(false)
   /** Bumps when user enables live location so the map geolocate control runs. */
   const [findMeTriggerNonce, setFindMeTriggerNonce] = useState(0)
   /** Bottom sheet over the map: always leaves a peek bar; expands/collapses (never fully dismissed). */
   const [bottomSheetExpanded, setBottomSheetExpanded] = useState(true)
   /** Right nav drawer (hamburger): quick actions + account; hidden until opened. */
   const [rightDrawerOpen, setRightDrawerOpen] = useState(false)
+  /** Continuous device position when meeting point is fixed (or pending) — independent of the blue meeting pin. */
+  const [deviceLiveTracking, setDeviceLiveTracking] = useState(false)
+  const [deviceLivePosition, setDeviceLivePosition] = useState<[number, number] | null>(null)
 
   /** Avoid applying an older reverse-geocode result if the user picks again quickly. */
   const mapLabelSeqRef = useRef(0)
 
-  const locationPickerActive = showPermissionModal && userLocation === null
-  const mapCenter = userLocation ?? DEFAULT_MAP_CENTER
-  const showMainMap = userLocation !== null || locationPickerActive
+  const locationPickerActive = showPermissionModal
+  const mapCenter = userLocation
+  /** Meeting coords follow Mapbox live GPS (no separate green “movement” pin). */
+  const liveMeetingLockedToGps =
+    liveLocationMode && !serviceLocationPending && !locationDisplayLabel?.trim()
 
-  const requestUserLocation = () => {
-    setIsRequestingLocation(true)
+  const trackedDevicePinForMap = useMemo(() => {
+    if (!deviceLiveTracking || !deviceLivePosition) return null
+    if (liveMeetingLockedToGps) return null
+    if (liveLocationMode && serviceLocationPending) return null
+    return deviceLivePosition
+  }, [
+    deviceLiveTracking,
+    deviceLivePosition,
+    liveMeetingLockedToGps,
+    liveLocationMode,
+    serviceLocationPending,
+  ])
+
+  const liveDeviceCoordsLine = useMemo(() => {
+    if (!deviceLivePosition) return null
+    const [lat, lng] = deviceLivePosition
+    return `${lat.toFixed(6)}, ${lng.toFixed(6)}`
+  }, [deviceLivePosition])
+
+  const mapChrome = useMemo(
+    () =>
+      getMapChromeFlags({
+        mapView,
+        showPermissionModal,
+        rightDrawerOpen,
+        serviceModalOpen,
+        paymentsOpen,
+        hasUserLocation: true,
+        locationPickerActive,
+      }),
+    [
+      mapView,
+      showPermissionModal,
+      rightDrawerOpen,
+      serviceModalOpen,
+      paymentsOpen,
+      locationPickerActive,
+    ],
+  )
+
+  /** Matches nav/header intent: typed label, else live GPS without a label. */
+  const quickActionsLocationSummary = useMemo(() => {
+    if (serviceLocationPending) return null
+    const trimmed = locationDisplayLabel?.trim() || null
+    if (trimmed) return trimmed
+    if (liveLocationMode && userLocation) return "Live location"
+    return null
+  }, [serviceLocationPending, locationDisplayLabel, userLocation, liveLocationMode])
+
+  const requestUserLocation = (opts?: { bootstrapMeeting?: boolean }) => {
+    const bootstrapMeeting = opts?.bootstrapMeeting ?? false
     setLocationError(null)
 
     if ("geolocation" in navigator) {
@@ -76,21 +138,33 @@ function HomePageContent() {
           const lat = position.coords.latitude
           const lng = position.coords.longitude
 
-          if (lat === 53.0793 && lng === 8.8017) {
+          if (lat === FAKE_GEO_LOC[0] && lng === FAKE_GEO_LOC[1]) {
             setLocationError("Unable to verify your location. Using default location.")
             setUserLocation([44.9778, -93.265])
+            if (bootstrapMeeting) {
+              setLiveLocationMode(false)
+              setServiceLocationPending(true)
+            }
           } else {
             setUserLocation([lat, lng])
             localStorage.setItem("location-permission-status", "granted")
+            if (bootstrapMeeting) {
+              setLiveLocationMode(true)
+              setServiceLocationPending(false)
+              setLocationDisplayLabel(null)
+              setLocationError(null)
+            }
           }
-          setIsRequestingLocation(false)
         },
         (error) => {
           console.error("Error getting location:", error)
           setLocationError("Unable to get your location. Using default location.")
           setUserLocation([44.9778, -93.265])
           localStorage.setItem("location-permission-status", "denied")
-          setIsRequestingLocation(false)
+          if (bootstrapMeeting) {
+            setLiveLocationMode(false)
+            setServiceLocationPending(true)
+          }
         },
         {
           enableHighAccuracy: true,
@@ -101,7 +175,6 @@ function HomePageContent() {
     } else {
       setLocationError("Geolocation not supported. Using default location.")
       setUserLocation([44.9778, -93.265])
-      setIsRequestingLocation(false)
     }
   }
 
@@ -109,9 +182,12 @@ function HomePageContent() {
     if (showPermissionModal) setPickerPin(null)
   }, [showPermissionModal])
 
+  /** Location / service / payments use overlay modals — keep map bottom sheet collapsed while they’re open. */
   useEffect(() => {
-    if (showPermissionModal) setBottomSheetExpanded(true)
-  }, [showPermissionModal])
+    if (showPermissionModal || serviceModalOpen || paymentsOpen) {
+      setBottomSheetExpanded(false)
+    }
+  }, [showPermissionModal, serviceModalOpen, paymentsOpen])
 
   /** Full-screen map “pages” (query `view`) take focus: collapse sheet & drawer. */
   useEffect(() => {
@@ -121,23 +197,14 @@ function HomePageContent() {
   }, [mapView])
 
   useEffect(() => {
-    if (serviceModalOpen) setBottomSheetExpanded(true)
-  }, [serviceModalOpen])
-
-  useEffect(() => {
-    if (paymentsOpen) setBottomSheetExpanded(true)
-  }, [paymentsOpen])
-
-  useEffect(() => {
     if (userLocation) setPickerPin(null)
   }, [userLocation])
 
   /** Persist meeting-point snapshot whenever service location state changes (single source for reloads). */
   useEffect(() => {
     if (typeof window === "undefined") return
-    if (userLocation === null && !serviceLocationPending) return
-    const lat = userLocation?.[0] ?? DEFAULT_MAP_CENTER[0]
-    const lng = userLocation?.[1] ?? DEFAULT_MAP_CENTER[1]
+    const lat = userLocation[0]
+    const lng = userLocation[1]
     writeStoredServiceLocation({
       v: 1,
       lat,
@@ -149,22 +216,58 @@ function HomePageContent() {
   }, [userLocation, liveLocationMode, locationDisplayLabel, serviceLocationPending])
 
   useEffect(() => {
-    setShowPermissionModal(true)
-
     const stored = readStoredServiceLocation()
     if (stored) {
       setUserLocation([stored.lat, stored.lng])
       setLiveLocationMode(stored.live)
       setLocationDisplayLabel(stored.label)
       setServiceLocationPending(stored.servicePending)
+    } else {
+      setLiveLocationMode(false)
+      setLocationDisplayLabel(null)
+      setServiceLocationPending(true)
+    }
+    setShowPermissionModal(false)
+
+    if (typeof window !== "undefined" && localStorage.getItem(DEVICE_LIVE_TRACKING_STORAGE_KEY) === "1") {
+      setDeviceLiveTracking(true)
     }
 
     const permissionStatus = localStorage.getItem("location-permission-status")
     if (permissionStatus === "granted" && (!stored || stored.live)) {
-      requestUserLocation()
+      requestUserLocation({ bootstrapMeeting: !stored })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useEffect(() => {
+    if (!deviceLiveTracking) {
+      setDeviceLivePosition(null)
+      return
+    }
+    if (liveMeetingLockedToGps) {
+      setDeviceLivePosition(null)
+      return
+    }
+    if (liveLocationMode && serviceLocationPending) {
+      setDeviceLivePosition(null)
+      return
+    }
+    if (typeof navigator === "undefined" || !("geolocation" in navigator)) return
+    const id = navigator.geolocation.watchPosition(
+      (pos) => {
+        setDeviceLivePosition([pos.coords.latitude, pos.coords.longitude])
+        try {
+          localStorage.setItem("location-permission-status", "granted")
+        } catch {
+          /* ignore */
+        }
+      },
+      () => {},
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 15_000 },
+    )
+    return () => navigator.geolocation.clearWatch(id)
+  }, [deviceLiveTracking, liveMeetingLockedToGps, liveLocationMode, serviceLocationPending])
 
   useEffect(() => {
     if (typeof window === "undefined") return
@@ -270,10 +373,65 @@ function HomePageContent() {
     dismissLocationPanelWithResume()
   }
 
-  const openLocationFromDashboard = () => {
+  const openLocationFromDashboard = useCallback(() => {
     setResumeServiceAfterLocation(false)
     setShowPermissionModal(true)
-  }
+  }, [])
+
+  const persistDeviceLiveTracking = useCallback((on: boolean) => {
+    setDeviceLiveTracking(on)
+    try {
+      localStorage.setItem(DEVICE_LIVE_TRACKING_STORAGE_KEY, on ? "1" : "0")
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
+  /** One tap to support: try a GPS fix for meeting point when still pending, then open the flow. */
+  const openServiceRequest = useCallback(() => {
+    setPaymentsOpen(false)
+    if (!serviceLocationPending) {
+      setServiceModalOpen(true)
+      return
+    }
+    if (typeof navigator === "undefined" || !("geolocation" in navigator)) {
+      setServiceModalOpen(true)
+      return
+    }
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const lat = position.coords.latitude
+        const lng = position.coords.longitude
+        if (lat === FAKE_GEO_LOC[0] && lng === FAKE_GEO_LOC[1]) {
+          setLocationError("Unable to verify your location. Using default location.")
+          setUserLocation([44.9778, -93.265])
+          setServiceModalOpen(true)
+          return
+        }
+        setUserLocation([lat, lng])
+        setLiveLocationMode(true)
+        setServiceLocationPending(false)
+        setLocationDisplayLabel(null)
+        setLocationError(null)
+        localStorage.setItem("location-permission-status", "granted")
+        setFindMeTriggerNonce((n) => n + 1)
+        setServiceModalOpen(true)
+      },
+      () => {
+        setServiceModalOpen(true)
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
+    )
+  }, [serviceLocationPending])
+
+  const quickHandlers = useHomeQuickActionHandlers({
+    setRightDrawerOpen,
+    setServiceModalOpen,
+    openServiceRequest,
+    setPaymentsOpen,
+    setBottomSheetExpanded,
+    openLocationPanel: openLocationFromDashboard,
+  })
 
   const openLocationFromServiceFlow = () => {
     setResumeServiceAfterLocation(true)
@@ -294,56 +452,48 @@ function HomePageContent() {
             drawerOpen={rightDrawerOpen}
             onDrawerOpenChange={setRightDrawerOpen}
             drawerQuickActions={
-              <DashboardQuickActions
-                variant="list"
-                onRequestImmediateSupport={() => {
-                  setRightDrawerOpen(false)
-                  setPaymentsOpen(false)
-                  setServiceModalOpen(true)
-                }}
-                onOpenPayments={() => {
-                  setRightDrawerOpen(false)
-                  setServiceModalOpen(false)
-                  setPaymentsOpen(true)
-                }}
-                onOpenLocationSettings={() => {
-                  setRightDrawerOpen(false)
-                  openLocationFromDashboard()
-                }}
-                phoneE164={DISPATCH_PHONE_E164}
-              />
+              <div className="lg:hidden">
+                <DashboardQuickActions
+                  variant="list"
+                  locationSummary={quickActionsLocationSummary}
+                  locationPending={serviceLocationPending}
+                  {...quickHandlers.drawer}
+                  phoneE164={DISPATCH_PHONE_E164}
+                />
+              </div>
             }
           />
           <main className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-            {showMainMap ? (
-              <>
+            <>
                 <FloatingMobileQuickNav
-                  enabled={Boolean(
-                    !mapView &&
-                      !showPermissionModal &&
-                      !rightDrawerOpen &&
-                      !serviceModalOpen &&
-                      !paymentsOpen,
-                  )}
-                  onRequestImmediateSupport={() => {
-                    setPaymentsOpen(false)
-                    setServiceModalOpen(true)
-                  }}
-                  onOpenPayments={() => {
-                    setServiceModalOpen(false)
-                    setPaymentsOpen(true)
-                  }}
-                  onOpenLocationSettings={openLocationFromDashboard}
+                  enabled={mapChrome.floatingNavEnabled}
+                  {...quickHandlers.map}
                   phoneE164={DISPATCH_PHONE_E164}
                   phoneDisplay={DISPATCH_PHONE_DISPLAY}
-                  onClosePanelDismiss={() => {
-                    setBottomSheetExpanded(true)
-                    setPaymentsOpen(false)
-                    setServiceModalOpen(false)
-                  }}
+                  onClosePanelDismiss={quickHandlers.onFloatingPanelDismiss}
                 />
-                <div className="box-border flex min-h-0 flex-1 flex-col px-3 pb-0 sm:px-4">
-                  <div className="relative min-h-0 flex-1 overflow-hidden rounded-2xl">
+                <div className="box-border flex min-h-0 flex-1 flex-col px-3 pb-0 sm:px-4 lg:flex-row lg:gap-0 lg:px-4">
+                  {/* Large screens: quick actions in a left rail beside the map */}
+                  <aside
+                    className={`mb-3 hidden min-h-0 w-[12rem] shrink-0 flex-col gap-2 rounded-2xl border border-zinc-700/90 bg-zinc-950/75 px-2.5 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] lg:mb-0 lg:mr-3 lg:self-stretch ${
+                      mapChrome.showLeftQuickRail ? "lg:flex" : "lg:hidden"
+                    }`}
+                    aria-label="Quick actions"
+                  >
+                    <p className="shrink-0 text-[10px] font-medium uppercase tracking-[0.12em] text-zinc-500">
+                      Quick actions
+                    </p>
+                    <div className="min-h-0 flex-1 overflow-y-auto">
+                      <DashboardQuickActions
+                        variant="list"
+                        locationSummary={quickActionsLocationSummary}
+                        locationPending={serviceLocationPending}
+                        {...quickHandlers.map}
+                        phoneE164={DISPATCH_PHONE_E164}
+                      />
+                    </div>
+                  </aside>
+                  <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl">
                     {mapView && <MapPageOverlay view={mapView} onClose={closeMapView} />}
                     <div className="map-stack absolute inset-0 min-h-0 overflow-hidden">
                       <MapToaster />
@@ -361,112 +511,81 @@ function HomePageContent() {
                             ? locationDisplayLabel.trim()
                             : null
                         }
-                        showFindMeControl={showMainMap}
+                        showFindMeControl
                         findMeTriggerNonce={findMeTriggerNonce}
                         onGeolocateSuccess={handleGeolocateSuccess}
                         onGeolocateFallback={handleGeolocateFallback}
+                        liveGpsPrimary={liveLocationMode && !locationPickerActive}
+                        trackedDevicePin={trackedDevicePinForMap}
                       />
                     </div>
                     <MapBottomSheet
-                      lockExpanded={showPermissionModal}
+                      className={mapChrome.bottomSheetHideOnLg ? "lg:hidden" : undefined}
+                      lockExpanded={false}
                       expanded={bottomSheetExpanded}
                       onExpandedChange={setBottomSheetExpanded}
-                      title={
-                        showPermissionModal
-                          ? "Location"
-                          : paymentsOpen
-                            ? "Payments"
-                            : serviceModalOpen
-                              ? "Service request"
-                              : "Dashboard"
-                      }
+                      title="Dashboard"
                     >
-                      {showPermissionModal && (
-                        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-                          <LocationPermissionModal
-                            isOpen={showPermissionModal}
-                            pickerPin={pickerPin}
-                            onPickerPinSet={(lat, lng) => setPickerPin([lat, lng])}
-                            onPickerPinClear={() => setPickerPin(null)}
-                            onUseCurrentLocation={handleUseCurrentLocation}
-                            onStopLiveLocation={handleStopLiveLocation}
-                            liveLocationActive={Boolean(
-                              userLocation &&
-                                liveLocationMode &&
-                                !serviceLocationPending &&
-                                !locationDisplayLabel?.trim(),
-                            )}
-                            onUseAddress={handleUseAddress}
-                            onDeny={handleDenyLocation}
-                          />
-                        </div>
-                      )}
-                      {!showPermissionModal && userLocation && !locationPickerActive && paymentsOpen && (
-                        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-                          <PaymentsModal
-                            variant="inline"
-                            isOpen={paymentsOpen}
-                            onClose={() => setPaymentsOpen(false)}
-                          />
-                        </div>
-                      )}
-                      {!showPermissionModal &&
-                        userLocation &&
-                        !locationPickerActive &&
-                        !paymentsOpen &&
-                        !serviceModalOpen && (
+                      {!showPermissionModal && !paymentsOpen && !serviceModalOpen && (
                         <div className="flex w-full shrink-0 flex-col overflow-y-auto">
                           <HomeDashboard
-                            onRequestImmediateSupport={() => {
-                              setPaymentsOpen(false)
-                              setServiceModalOpen(true)
-                            }}
-                            onOpenPayments={() => {
-                              setServiceModalOpen(false)
-                              setPaymentsOpen(true)
-                            }}
-                            onOpenLocationSettings={openLocationFromDashboard}
+                            locationSummary={quickActionsLocationSummary}
+                            locationPending={serviceLocationPending}
+                            {...quickHandlers.map}
                             phoneDisplay={DISPATCH_PHONE_DISPLAY}
                             phoneE164={DISPATCH_PHONE_E164}
                           />
                         </div>
                       )}
-                      {!showPermissionModal &&
-                        userLocation &&
-                        !locationPickerActive &&
-                        !paymentsOpen &&
-                        serviceModalOpen && (
-                        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-                          <FloatingMenu
-                            userLocation={userLocation}
-                            addressLabel={locationDisplayLabel}
-                            locationPending={serviceLocationPending}
-                            isModalOpen
-                            onClose={() => setServiceModalOpen(false)}
-                            onEditLocation={openLocationFromServiceFlow}
-                            variant="inline"
-                          />
-                        </div>
-                      )}
                     </MapBottomSheet>
+
+                    {showPermissionModal && (
+                      <MapOverlayDialog
+                        title="Location"
+                        titleId="location-overlay-title"
+                        onClose={() => dismissLocationPanelWithResume()}
+                      >
+                        <LocationPermissionModal
+                          isOpen={showPermissionModal}
+                          pickerPin={pickerPin}
+                          onPickerPinSet={(lat, lng) => setPickerPin([lat, lng])}
+                          onPickerPinClear={() => setPickerPin(null)}
+                          onUseCurrentLocation={handleUseCurrentLocation}
+                          onStopLiveLocation={handleStopLiveLocation}
+                          liveLocationActive={Boolean(
+                            userLocation &&
+                              liveLocationMode &&
+                              !serviceLocationPending &&
+                              !locationDisplayLabel?.trim(),
+                          )}
+                          onUseAddress={handleUseAddress}
+                          onDeny={handleDenyLocation}
+                        />
+                      </MapOverlayDialog>
+                    )}
+
+                    {mapChrome.showPaymentsModal && (
+                      <PaymentsModal isOpen={paymentsOpen} onClose={() => setPaymentsOpen(false)} />
+                    )}
+
+                    {mapChrome.showServiceModal && (
+                      <FloatingMenu
+                        userLocation={userLocation}
+                        addressLabel={locationDisplayLabel}
+                        locationPending={serviceLocationPending}
+                        liveMeetingLockedToGps={liveMeetingLockedToGps}
+                        deviceLiveTracking={deviceLiveTracking}
+                        onDeviceLiveTrackingChange={persistDeviceLiveTracking}
+                        liveDeviceCoordsLine={liveDeviceCoordsLine}
+                        isModalOpen
+                        onClose={() => setServiceModalOpen(false)}
+                        onEditLocation={openLocationFromServiceFlow}
+                        variant="overlay"
+                      />
+                    )}
                   </div>
                 </div>
-              </>
-            ) : (
-              <div className="box-border flex min-h-0 flex-1 flex-col px-3 pb-0 sm:px-4">
-                <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl">
-                  {mapView && <MapPageOverlay view={mapView} onClose={closeMapView} />}
-                  <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-white/70">
-                    <div className="animate-pulse-subtle px-4 text-center text-lg text-zinc-900">
-                      {isRequestingLocation ? "Getting your location..." : locationError || "Waiting for location..."}
-                    </div>
-                  </div>
-                  <div className="min-h-0 flex-1 overflow-y-auto bg-zinc-100/90 p-3 text-sm text-zinc-600">
-                    Location will appear on the map when ready.
-                  </div>
-                </div>
-              </div>
-            )}
+            </>
           </main>
         </div>
       </div>
@@ -474,7 +593,7 @@ function HomePageContent() {
   )
 }
 
-export default function HomePage() {
+export function MapHomePage() {
   return (
     <Suspense
       fallback={
@@ -483,5 +602,25 @@ export default function HomePage() {
     >
       <HomePageContent />
     </Suspense>
+  )
+}
+
+export default function HomePage() {
+  return (
+    <div data-app-scroll-root className="h-[100dvh] overflow-y-auto bg-zinc-950 text-zinc-100">
+      <Navigation frameClassName="max-w-none" />
+      <main className="w-full pb-12 pt-0">
+        <HomeHeroSection />
+        <div className="mx-auto max-w-6xl px-4 sm:px-6">
+          <HomeDemoWorkflowSection />
+          <p className="mt-6 text-sm text-zinc-500">
+            Need immediate assistance?{" "}
+            <Link href="/map" className="text-sky-400/90 underline-offset-4 hover:underline">
+              Open the live map and request support.
+            </Link>
+          </p>
+        </div>
+      </main>
+    </div>
   )
 }

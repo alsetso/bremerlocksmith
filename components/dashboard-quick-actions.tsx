@@ -16,6 +16,10 @@ export interface DashboardQuickActionsProps {
   phoneE164: string
   /** Tighter layout for narrow drawer */
   variant?: "grid" | "list"
+  /** When set, shown on the Location row (truncated). Omitted when pending without a label. */
+  locationSummary?: string | null
+  /** True when the user still needs to pick a meeting point. */
+  locationPending?: boolean
 }
 
 export function DashboardQuickActions({
@@ -24,7 +28,16 @@ export function DashboardQuickActions({
   onOpenLocationSettings,
   phoneE164,
   variant = "grid",
+  locationSummary,
+  locationPending = false,
 }: DashboardQuickActionsProps) {
+  const summary = locationSummary?.trim() ?? ""
+  const locationSubtitle = locationPending
+    ? "Select service location"
+    : summary
+      ? summary
+      : null
+
   const grid =
     variant === "grid"
       ? "grid w-full grid-cols-3 content-start gap-x-1 gap-y-1 sm:gap-x-1.5 sm:gap-y-1.5"
@@ -38,11 +51,37 @@ export function DashboardQuickActions({
         </span>
         <span className={cardTitle}>Immediate support</span>
       </button>
-      <button type="button" onClick={onOpenLocationSettings} className={cardShell}>
-        <span className={cardIcon}>
+      <button
+        type="button"
+        onClick={onOpenLocationSettings}
+        title={summary || (locationPending ? "Select service location" : "Set meeting location")}
+        className={
+          variant === "list"
+            ? `${cardShell} min-h-[3.25rem] items-start py-2 sm:min-h-[3.5rem]`
+            : cardShell
+        }
+      >
+        <span className={variant === "list" ? `${cardIcon} mt-0.5` : cardIcon}>
           <MapPin className="h-4 w-4 text-sky-400/90 sm:h-[18px] sm:w-[18px]" strokeWidth={1.75} aria-hidden />
         </span>
-        <span className={cardTitle}>Location</span>
+        {variant === "list" ? (
+          <span className="flex min-w-0 flex-1 flex-col items-start gap-0.5 text-left">
+            <span className="font-serif text-[11px] font-semibold leading-tight text-zinc-100 sm:text-xs">Location</span>
+            {locationSubtitle ? (
+              <span className="line-clamp-2 w-full text-[10px] font-normal leading-snug text-zinc-400">{locationSubtitle}</span>
+            ) : (
+              <span className="text-[10px] font-normal leading-snug text-zinc-500">Tap to set</span>
+            )}
+          </span>
+        ) : (
+          <span className={`${cardTitle} line-clamp-2 sm:line-clamp-2`}>
+            {locationPending
+              ? "Select location"
+              : summary
+                ? summary
+                : "Location"}
+          </span>
+        )}
       </button>
       <a href={`tel:${phoneE164}`} className={cardShell}>
         <span className={cardIcon}>

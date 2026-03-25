@@ -9,6 +9,12 @@ interface FloatingMenuProps {
   addressLabel?: string | null
   /** User chose “Not Now” on location — no real service address yet. */
   locationPending?: boolean
+  /** Meeting point is tied to Mapbox live GPS (separate movement share not used). */
+  liveMeetingLockedToGps?: boolean
+  deviceLiveTracking?: boolean
+  onDeviceLiveTrackingChange?: (on: boolean) => void
+  /** Latest device coords while movement sharing is on (sent with dispatch email). */
+  liveDeviceCoordsLine?: string | null
   isModalOpen: boolean
   onClose: () => void
   /** Opens the select / live GPS location form (below the map). */
@@ -20,6 +26,10 @@ export function FloatingMenu({
   userLocation,
   addressLabel,
   locationPending = false,
+  liveMeetingLockedToGps = false,
+  deviceLiveTracking = false,
+  onDeviceLiveTrackingChange,
+  liveDeviceCoordsLine = null,
   isModalOpen,
   onClose,
   onEditLocation,
@@ -126,6 +136,10 @@ export function FloatingMenu({
       coordinates={coordinates}
       locationPending={locationPending}
       addressLabel={addressLabel}
+      liveMeetingLockedToGps={liveMeetingLockedToGps}
+      deviceLiveTracking={deviceLiveTracking}
+      onDeviceLiveTrackingChange={onDeviceLiveTrackingChange}
+      liveDeviceCoordsLine={liveDeviceCoordsLine}
       onEditLocation={onEditLocation}
     />
   )

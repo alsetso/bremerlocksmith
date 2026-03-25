@@ -8,5 +8,5 @@ export const metadata: Metadata = {
 }
 
 export default function ServicesPage() {
-  redirect("/?view=services")
+  redirect("/map?view=services")
 }

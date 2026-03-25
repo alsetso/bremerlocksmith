@@ -22,7 +22,16 @@ export async function POST(request: NextRequest) {
     const resend = new Resend(apiKey)
 
     const body = await request.json()
-    const { serviceType, lockoutType, customerName, phoneNumber, notes, userAddress, coordinates } = body
+    const {
+      serviceType,
+      lockoutType,
+      customerName,
+      phoneNumber,
+      notes,
+      userAddress,
+      coordinates,
+      liveDeviceCoordinates,
+    } = body
 
     const serviceLabel = formatServiceType(serviceType, lockoutType)
 
@@ -61,6 +70,16 @@ export async function POST(request: NextRequest) {
                 <td style="padding: 10px; border-bottom: 1px solid #dee2e6; font-weight: bold; color: #495057;">Coordinates:</td>
                 <td style="padding: 10px; border-bottom: 1px solid #dee2e6; color: #212529; font-family: monospace; font-size: 14px;">${coordinates}</td>
               </tr>
+              ${
+                typeof liveDeviceCoordinates === 'string' && liveDeviceCoordinates.trim()
+                  ? `
+              <tr>
+                <td style="padding: 10px; border-bottom: 1px solid #dee2e6; font-weight: bold; color: #495057;">Live device (movement):</td>
+                <td style="padding: 10px; border-bottom: 1px solid #dee2e6; color: #212529; font-family: monospace; font-size: 14px;">${liveDeviceCoordinates.trim()}</td>
+              </tr>
+              `
+                  : ''
+              }
               ${notes ? `
               <tr>
                 <td style="padding: 10px; border-bottom: 1px solid #dee2e6; font-weight: bold; color: #495057;">Additional Notes:</td>
@@ -99,7 +118,7 @@ Customer Name: ${customerName}
 Phone Number: ${phoneNumber}
 Location: ${userAddress}
 Coordinates: ${coordinates}
-${notes ? `Additional Notes: ${notes}` : ''}
+${typeof liveDeviceCoordinates === 'string' && liveDeviceCoordinates.trim() ? `Live device (movement): ${liveDeviceCoordinates.trim()}\n` : ''}${notes ? `Additional Notes: ${notes}` : ''}
 
 URGENT: Customer needs immediate assistance. Please contact the customer as soon as possible to confirm dispatch.
 

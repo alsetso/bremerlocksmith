@@ -8,5 +8,5 @@ export const metadata: Metadata = {
 }
 
 export default function DriversPage() {
-  redirect("/?view=drivers")
+  redirect("/map?view=drivers")
 }

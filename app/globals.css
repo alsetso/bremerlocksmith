@@ -249,3 +249,103 @@
   max-width: min(16rem, calc(100% - 1rem)) !important;
   z-index: 30 !important;
 }
+
+/* Mapbox: dark “set location” popup (no close icon — dismiss via Cancel or map) */
+.mapboxgl-popup.bremer-map-location-popup .mapboxgl-popup-content {
+  background: #18181b;
+  padding: 0;
+  border-radius: 12px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
+  border: 1px solid rgb(39 39 42);
+  overflow: hidden;
+}
+
+.mapboxgl-popup.bremer-map-location-popup .mapboxgl-popup-close-button {
+  display: none;
+}
+
+/* Tip fill matches card for all anchor variants (incl. bottom-left, top-right, etc.) */
+.mapboxgl-popup.bremer-map-location-popup[class*="mapboxgl-popup-anchor-bottom"] .mapboxgl-popup-tip {
+  border-top-color: #18181b;
+}
+
+.mapboxgl-popup.bremer-map-location-popup[class*="mapboxgl-popup-anchor-top"] .mapboxgl-popup-tip {
+  border-bottom-color: #18181b;
+}
+
+.mapboxgl-popup.bremer-map-location-popup[class*="mapboxgl-popup-anchor-left"]:not([class*="anchor-top"]):not(
+  [class*="anchor-bottom"]
+)
+  .mapboxgl-popup-tip {
+  border-right-color: #18181b;
+}
+
+.mapboxgl-popup.bremer-map-location-popup[class*="mapboxgl-popup-anchor-right"]:not([class*="anchor-top"]):not(
+  [class*="anchor-bottom"]
+)
+  .mapboxgl-popup-tip {
+  border-left-color: #18181b;
+}
+
+/* Homepage demo workflow — Mapbox popup */
+.mapboxgl-popup.home-demo-mapbox-popup .mapboxgl-popup-content {
+  background: rgba(9, 9, 11, 0.96);
+  padding: 0;
+  border-radius: 12px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+  border: 1px solid rgb(39 39 42);
+  overflow: hidden;
+}
+
+.mapboxgl-popup.home-demo-mapbox-popup--no-close .mapboxgl-popup-close-button {
+  display: none;
+}
+
+.mapboxgl-popup.home-demo-mapbox-popup[class*="mapboxgl-popup-anchor-bottom"] .mapboxgl-popup-tip {
+  border-top-color: rgb(24 24 27);
+}
+
+.mapboxgl-popup.home-demo-mapbox-popup[class*="mapboxgl-popup-anchor-top"] .mapboxgl-popup-tip {
+  border-bottom-color: rgb(24 24 27);
+}
+
+/* Homepage demo map — dark mode zoom (+ / −) */
+.home-demo-mapbox-wrap .mapboxgl-ctrl-group {
+  background: rgb(24 24 27);
+  border-radius: 0.5rem;
+  box-shadow: 0 0 0 1px rgb(63 63 70);
+  overflow: hidden;
+}
+
+.home-demo-mapbox-wrap .mapboxgl-ctrl-group button {
+  background-color: rgb(24 24 27);
+  border-color: rgb(63 63 70);
+}
+
+.home-demo-mapbox-wrap .mapboxgl-ctrl-group button:hover {
+  background-color: rgb(39 39 42);
+}
+
+.home-demo-mapbox-wrap .mapboxgl-ctrl-group button + button {
+  border-top: 1px solid rgb(63 63 70);
+}
+
+.home-demo-mapbox-wrap .mapboxgl-ctrl-icon {
+  filter: invert(1) brightness(1.15);
+}
+
+.home-demo-mapbox-wrap .mapboxgl-ctrl-attrib {
+  background: rgb(24 24 27 / 0.92);
+  color: rgb(161 161 170);
+  box-shadow: 0 0 0 1px rgb(63 63 70);
+  border-radius: 0.375rem;
+}
+
+.home-demo-mapbox-wrap .mapboxgl-ctrl-attrib a {
+  color: rgb(212 212 216);
+}
+
+/* Admin waypoint picking — crosshair on map */
+.home-demo-mapbox-wrap.home-demo-mapbox--admin-pick canvas.mapboxgl-canvas {
+  cursor: crosshair !important;
+}

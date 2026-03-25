@@ -8,5 +8,5 @@ export const metadata: Metadata = {
 }
 
 export default function PartnersPage() {
-  redirect("/?view=partners")
+  redirect("/map?view=partners")
 }
